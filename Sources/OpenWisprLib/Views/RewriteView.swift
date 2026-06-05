@@ -657,7 +657,13 @@ final class RewritePanel {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, let p = self.panel, p.isVisible else { return }
-            if self.vm.mode == .idle || self.vm.mode == .result { self.hide() }
+            guard self.vm.mode == .idle || self.vm.mode == .result else { return }
+            // nonactivatingPanel means every click — including title bar drags —
+            // registers as a global event. Check the actual mouse position in
+            // screen coordinates: if the click is inside the panel frame the user
+            // is interacting with the panel, not clicking away from it.
+            if p.frame.contains(NSEvent.mouseLocation) { return }
+            self.hide()
         }
     }
 
