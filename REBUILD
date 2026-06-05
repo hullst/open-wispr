@@ -1,0 +1,66 @@
+#!/bin/bash
+# Build Wispr from source, bundle into Wispr.app, and install.
+# Usage: bash REBUILD
+set -e
+cd "$(dirname "$0")"
+
+VERSION=$(grep 'version = ' Sources/OpenWisprLib/Version.swift | sed 's/.*"\(.*\)".*/\1/')
+
+echo "===== 1. build (release) ====="
+swift build -c release 2>&1 | grep -E "error:|Build complete|Compiling wispr" || true
+# Re-run cleanly to surface errors if the pipe swallowed them
+swift build -c release
+echo "build OK."
+
+echo ""
+echo "===== 2. bundle Wispr.app ====="
+bash scripts/bundle-app.sh \
+    .build/release/wispr \
+    /tmp/Wispr-build.app \
+    "$VERSION"
+echo "bundle OK."
+
+echo ""
+echo "===== 3. install to /Applications ====="
+pkill -x "Wispr" 2>/dev/null || true
+pkill -f "wispr" 2>/dev/null || true
+sleep 0.5
+rm -rf "/Applications/Wispr.app"
+cp -R /tmp/Wispr-build.app "/Applications/Wispr.app"
+rm -rf /tmp/Wispr-build.app
+echo "installed."
+
+echo ""
+echo "===== 4. strip resource forks + codesign ====="
+xattr -cr "/Applications/Wispr.app"
+codesign --force --deep --sign - \
+  --requirements "=designated => identifier \"com.hull.wispr\"" \
+  "/Applications/Wispr.app" && echo "signed OK."
+
+echo ""
+echo "===== 5. install LaunchAgent ====="
+PLIST_SRC="$(pwd)/com.hull.wispr.plist"
+PLIST_DST="$HOME/Library/LaunchAgents/com.hull.wispr.plist"
+if [ -f "$PLIST_SRC" ]; then
+    launchctl unload "$PLIST_DST" 2>/dev/null || true
+    cp "$PLIST_SRC" "$PLIST_DST"
+    launchctl load "$PLIST_DST"
+    echo "LaunchAgent installed."
+else
+    echo "(No LaunchAgent plist found — skipping. Run once manually to generate.)"
+fi
+
+echo ""
+echo "===== 6. verify running ====="
+sleep 2
+if pgrep -qf "wispr"; then
+    echo "running (started by LaunchAgent)."
+else
+    echo "WARNING: app didn't start — check Console for crash logs."
+fi
+
+echo ""
+echo "DONE."
+echo "If this is a first install, go to:"
+echo "  System Settings → Privacy & Security → Accessibility → Wispr → ON"
+echo "  System Settings → Privacy & Security → Microphone → Wispr → ON"
