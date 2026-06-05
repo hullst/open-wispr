@@ -72,9 +72,17 @@ final class RewriteViewModel: ObservableObject {
     func rewrite() {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        cancel()
-        withAnimation { mode = .rewriting }
+        // Cancel tasks without touching mode — avoids the brief .idle flash
+        // that could trigger the outside-click monitor during the transition.
+        activeTasks.forEach { $0.cancel() }
+        activeTasks = []
         errorMessage = nil
+        withAnimation(.easeOut(duration: 0.15)) {
+            mode = .rewriting
+            primaryResult = nil
+            variants = []
+            showDiff = false
+        }
 
         let source = text
         let providerId = selectedProviderId
@@ -162,8 +170,9 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func paste(_ text: String) {
-        RewritePanel.shared.closeForPaste()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        // Just insert — panel stays visible so the user can see what was pasted.
+        // The outside-click monitor will close it when they click elsewhere.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             TextInserter().insert(text: text)
         }
     }
@@ -511,8 +520,18 @@ final class RewritePanel {
     private init() {}
 
     func show(prefill text: String? = nil) {
-        if let t = text { vm.prefill(text: t) } else { vm.loadRecents() }
         if panel == nil { panel = buildPanel() }
+
+        // Only prefill if the panel is idle — don't nuke an in-progress
+        // rewrite or a result the user hasn't read yet.
+        if vm.mode == .idle || vm.mode == .result {
+            if let t = text {
+                vm.prefill(text: t)
+            } else {
+                vm.loadRecents()
+            }
+        }
+
         panel?.makeKeyAndOrderFront(nil)
         startOutsideClickMonitor()
     }
@@ -520,16 +539,6 @@ final class RewritePanel {
     func hide() {
         panel?.orderOut(nil)
         stopOutsideClickMonitor()
-    }
-
-    func closeForPaste() {
-        panel?.orderOut(nil)
-        stopOutsideClickMonitor()
-        withAnimation(.easeOut(duration: 0.12)) {
-            vm.mode = .idle
-            vm.primaryResult = nil
-            vm.variants = []
-        }
     }
 
     private func buildPanel() -> NSPanel {
@@ -572,7 +581,8 @@ final class RewritePanel {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, let p = self.panel, p.isVisible else { return }
-            if self.vm.mode == .idle { self.hide() }
+            // Close when idle or result — not while actively rewriting/running variants.
+            if self.vm.mode == .idle || self.vm.mode == .result { self.hide() }
         }
     }
 
