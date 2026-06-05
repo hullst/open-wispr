@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VP Rewriter — States</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #e9e7e2; }
+  * { box-sizing: border-box; }
+  @keyframes vpPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  @keyframes vpBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes vpEq { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+  @keyframes vpSpin { to { transform: rotate(360deg); } }
+  @keyframes vpStream { 0%,100% { box-shadow: inset 0 -2px 0 rgba(10,108,255,0.15); } 50% { box-shadow: inset 0 -2px 0 rgba(10,108,255,0.7); } }
+  .vp-pulse { animation: vpPulse 1.1s ease-in-out infinite; }
+  .vp-caret { animation: vpBlink 1s step-end infinite; }
+  .vp-eq { transform-origin: bottom; animation: vpEq 0.8s ease-in-out infinite; }
+  .vp-spin { animation: vpSpin 0.8s linear infinite; }
+  .vp-streamborder { animation: vpStream 1.2s ease-in-out infinite; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="chrome.jsx"></script>
+<script type="text/babel" src="screen.jsx"></script>
+
+<script type="text/babel">
+  const bare = { background: 'transparent', boxShadow: 'none', borderRadius: 0, overflow: 'visible' };
+  const AB = ({ id, label, state, h = 772, mode = 'light' }) => (
+    <DCArtboard id={id} label={label} width={600} height={h} style={bare}>
+      <Screen mode={mode} state={state} />
+    </DCArtboard>
+  );
+
+  function App() {
+    return (
+      <DesignCanvas>
+        <DCSection id="core" title="Core states"
+          subtitle="The screen as it moves through a rewrite — empty → input → dictation → generating → ready.">
+          {AB({ id: 'empty', label: 'Empty · fresh launch', state: 'empty' })}
+          {AB({ id: 'typed', label: 'Input typed', state: 'typed' })}
+          {AB({ id: 'recording', label: 'Recording', state: 'recording' })}
+          {AB({ id: 'transcribing', label: 'Transcribing', state: 'transcribing' })}
+          {AB({ id: 'rewriting', label: 'Rewriting · streaming', state: 'rewriting' })}
+          {AB({ id: 'result', label: 'Output ready', state: 'result' })}
+          {AB({ id: 'offline', label: 'Ollama offline', state: 'offline' })}
+        </DCSection>
+
+        <DCSection id="panels" title="Panels"
+          subtitle="Variants grid, expanded history, and the Replying-to context field.">
+          {AB({ id: 'variants', label: 'Variants open', state: 'variants', h: 912 })}
+          {AB({ id: 'history', label: 'History expanded', state: 'history', h: 952 })}
+          {AB({ id: 'replying', label: 'Replying-to active', state: 'replying', h: 856 })}
+        </DCSection>
+
+        <DCSection id="overlays" title="Modal & toasts"
+          subtitle="Custom-style editor and the toast notification family.">
+          {AB({ id: 'modal', label: 'Custom style modal', state: 'modal' })}
+          <DCArtboard id="toasts" label="Toasts" width={460} height={420} style={bare}>
+            <ToastShowcase />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="darkset" title="Dark mode"
+          subtitle="The same screens in dark appearance.">
+          {AB({ id: 'result-d', label: 'Output ready · dark', state: 'result', mode: 'dark' })}
+          {AB({ id: 'variants-d', label: 'Variants · dark', state: 'variants', h: 912, mode: 'dark' })}
+        </DCSection>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

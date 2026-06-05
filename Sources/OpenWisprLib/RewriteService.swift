@@ -33,7 +33,11 @@ final class RewriteService {
         let style = styleId ?? WisprDefaults.shared.defaultStyleId
         let systemPrompt = StylePresets.buildPrompt(styleId: style, lengthId: lengthId, variantIndex: variantIndex)
 
-        let result = try await provider.rewrite(text: text, systemPrompt: systemPrompt, maxTokens: 1024, temperature: 0.3)
+        // Ramp temperature per variant so outputs genuinely differ.
+        // Single rewrite (index 0) stays conservative; variants 1 and 2 explore wider.
+        let temperature: Double = [0.3, 0.58, 0.78][min(variantIndex, 2)]
+
+        let result = try await provider.rewrite(text: text, systemPrompt: systemPrompt, maxTokens: 1024, temperature: temperature)
 
         PersistenceContainer.shared.logRewrite(
             transcriptId: transcriptId,

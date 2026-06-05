@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rewrite — Menu-bar icon</title>
+<style>
+  :root { --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; --mono: "SF Mono", ui-monospace, Menlo, monospace; }
+  html, body { margin: 0; height: 100%; }
+  body { background: #e9e7e2; font-family: var(--ui); color: #1d1d1f; display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 56px 24px; box-sizing: border-box; }
+  .glyph { display: inline-flex; }
+  /* the SVG inherits color → behaves like a real template image */
+  .glyph svg { display: block; }
+
+  .bar { width: 560px; height: 24px; border-radius: 7px; display: flex; align-items: center; padding: 0 12px; gap: 18px; font-size: 12.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+  .bar .spacer { flex: 1; }
+  .bar .item { opacity: 0.75; }
+
+  .light { background: #f3f3f4; color: rgba(0,0,0,0.82); }
+  .dark  { background: #2b2b2d; color: rgba(255,255,255,0.92); }
+
+  .caption { font-size: 12px; color: #86868b; margin-top: -18px; }
+  .sizes { display: flex; align-items: flex-end; gap: 34px; background: #fff; border: 0.5px solid rgba(0,0,0,0.08); border-radius: 14px; padding: 26px 34px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .sizes .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .sizes .lbl { font-family: var(--mono); font-size: 10.5px; color: #b0b0b5; }
+  h1 { font-size: 15px; font-weight: 640; margin: 0; }
+  .row { display: flex; gap: 22px; align-items: center; }
+  .chip { font-family: var(--mono); font-size: 11px; color: #6e6e73; background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 6px; padding: 5px 9px; }
+</style>
+</head>
+<body>
+  <h1>Rewrite · macOS menu-bar (template) icon</h1>
+
+  <div style="display:flex; flex-direction:column; gap:14px; align-items:center;">
+    <div class="bar light">
+      <span class="glyph" style="color: rgba(0,0,0,0.82)"></span>
+      <span class="spacer"></span>
+      <span class="item">100%</span><span class="item">Wed 3:24</span>
+      <span class="glyph" id="g-light" style="color: rgba(0,0,0,0.82)"></span>
+    </div>
+    <div class="caption">Light menu bar — renders black</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:14px; align-items:center;">
+    <div class="bar dark">
+      <span class="spacer"></span>
+      <span class="item">100%</span><span class="item">Wed 3:24</span>
+      <span class="glyph" id="g-dark" style="color: rgba(255,255,255,0.92)"></span>
+    </div>
+    <div class="caption">Dark menu bar — same file, OS inverts to white</div>
+  </div>
+
+  <div class="sizes">
+    <div class="col"><span class="glyph s" data-s="16"></span><span class="lbl">16 · @1x</span></div>
+    <div class="col"><span class="glyph s" data-s="22"></span><span class="lbl">22 · bar</span></div>
+    <div class="col"><span class="glyph s" data-s="32"></span><span class="lbl">32 · @2x</span></div>
+    <div class="col"><span class="glyph s" data-s="48"></span><span class="lbl">48 · @3x</span></div>
+  </div>
+
+  <div class="row">
+    <span class="chip">RewriteTemplate.svg</span>
+    <span class="chip">rewriteTemplate.png</span>
+    <span class="chip">@2x · @3x</span>
+  </div>
+
+<script>
+  const SVG = (size, stroke) => `
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
+      <path d="M4 9 q1.7 -2.6 3.4 0 t3.4 0 t3.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+      <path d="M4 15.4 H14.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M18.6 3.1 l1 2.3 2.3 1 -2.3 1 -1 2.3 -1 -2.3 -2.3 -1 2.3 -1 z" fill="currentColor"/>
+    </svg>`;
+  document.getElementById('g-light').innerHTML = SVG(18);
+  document.getElementById('g-dark').innerHTML = SVG(18);
+  document.querySelectorAll('.bar.light .glyph')[0].innerHTML = SVG(18);
+  document.querySelectorAll('.s').forEach(el => el.innerHTML = SVG(+el.dataset.s));
+</script>
+</body>
+</html>

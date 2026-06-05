@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VP Rewriter — Icons</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #e9e7e2; }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="chrome.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+
+<script type="text/babel">
+  const bare = { background: 'transparent', boxShadow: 'none', borderRadius: 0, overflow: 'visible' };
+
+  function App() {
+    return (
+      <DesignCanvas>
+        <DCSection id="app-icon" title="App icon · 5 directions"
+          subtitle="True Apple squircle. Each shown at 196px + scaled to 128 / 64 / 32 / 16.">
+          <DCArtboard id="opt1" label="1 · Pencil + brackets" width={280} height={384} style={bare}>
+            <AppOption title="Pencil + brackets" sub="Blue-grey · depth"
+              bg="linear-gradient(155deg,#808da4,#566074)" finish="depth"
+              mark={MARKS.pencil} markColor="#fff" markOpts={{ brackets: true, accent: 'rgba(255,255,255,0.7)' }} />
+          </DCArtboard>
+          <DCArtboard id="opt2" label="2 · Nib" width={280} height={384} style={bare}>
+            <AppOption title="Nib" sub="Accent · flat"
+              bg="linear-gradient(155deg,#2e84ff,#0a57db)" finish="flat"
+              mark={MARKS.nib} markColor="#fff" markOpts={{ accent: '#bcd6ff' }} />
+          </DCArtboard>
+          <DCArtboard id="opt3" label="3 · Rewrite brackets" width={280} height={384} style={bare}>
+            <AppOption title="Rewrite brackets" sub="Light · depth"
+              bg="linear-gradient(155deg,#ffffff,#e9ecf1)" finish="depth"
+              mark={MARKS.brackets} markColor="#1d1d1f" markOpts={{ accent: '#0a6cff' }} />
+          </DCArtboard>
+          <DCArtboard id="opt4" label="4 · Transform" width={280} height={384} style={bare}>
+            <AppOption title="Transform" sub="Ink · flat"
+              bg="linear-gradient(155deg,#262a33,#14161b)" finish="flat"
+              mark={MARKS.transform} markColor="#f3f4f6" markOpts={{ accent: '#5b9dff' }} />
+          </DCArtboard>
+          <DCArtboard id="opt5" label="5 · Glass pencil" width={280} height={384} style={bare}>
+            <AppOption title="Glass pencil" sub="Light · glass"
+              bg="linear-gradient(155deg,#eef1f6,#d8dee8)" finish="glass"
+              mark={MARKS.pencil} markColor="#0a6cff" markOpts={{ brackets: false, accent: '#0a6cff' }} />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="glyphs" title="In-app glyph set"
+          subtitle="One consistent line family for toolbar + inline use.">
+          <DCArtboard id="glyph-grid" label="Glyphs" width={920} height={300} style={bare}>
+            <IconShowcase />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="menubar" title="Menu-bar / tray"
+          subtitle="Monochrome template — adapts to light & dark menu bars.">
+          <DCArtboard id="mb-light" label="Light" width={680} height={104} style={bare}>
+            <MenuBar dark={false} />
+          </DCArtboard>
+          <DCArtboard id="mb-dark" label="Dark" width={680} height={104} style={bare}>
+            <MenuBar dark={true} />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
