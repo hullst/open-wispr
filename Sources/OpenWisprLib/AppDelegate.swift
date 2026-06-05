@@ -23,8 +23,30 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleSilentRewrite()
         }
 
-        // Probe Ollama for available models in the background.
-        Task { await RewriteService.shared.probe() }
+        // Probe Ollama; warn in menu bar if default model is missing.
+        Task { [weak self] in
+            await RewriteService.shared.probe()
+            await MainActor.run {
+                let ollama = RewriteService.shared.ollama
+                let model = WisprDefaults.shared.defaultOllamaModel
+                if ollama.availableModels.isEmpty {
+                    self?.statusBar.state = .needsAttention("Ollama not running — local rewrite unavailable")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        if case .needsAttention = self?.statusBar.state ?? .idle { self?.statusBar.state = .idle }
+                    }
+                } else if !ollama.availableModels.contains(where: { $0.hasPrefix(model.components(separatedBy: ":").first ?? model) }) {
+                    self?.statusBar.state = .needsAttention("Model \(model) not found — run: ollama pull \(model)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                        if case .needsAttention = self?.statusBar.state ?? .idle { self?.statusBar.state = .idle }
+                    }
+                }
+            }
+        }
+
+        // Show onboarding on first launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            OnboardingWindowController.shared.showIfNeeded()
+        }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.setup()

@@ -23,40 +23,39 @@ The foundational merge of OpenWispr fork + VP Rewriter into a single native Swif
 
 ---
 
-## v2.1 — Voice Quality
+## v2.1 — Voice Quality & Polish ✓ shipped
 
-- [ ] **Evaluate Gemma 3 4B as local default.** Current default is `gemma2:9b` (the battle-tested VP Rewriter model). Run an eval against `gemma3:4b` — smaller, faster on Apple Silicon. Only switch if voice-preservation quality is equal or better. Run: `ollama pull gemma3:4b`, then compare outputs side-by-side in the rewrite sheet using the everyday style on 10 real dictations.
-- [ ] **AI linter port.** Port `ai-blocklist.js` linter logic to Swift. On every rewrite, run the deterministic linter. If violations found: show yellow warning in result pane listing the offenders. Do NOT auto-reject — just flag.
-- [ ] **Stream Ollama responses.** Switch OllamaProvider from blocking to streaming (`"stream": true`). Update RewriteView to show tokens as they arrive. Better perceived latency for long rewrites.
-- [ ] **Rewrite sheet keyboard shortcut.** Bind `⌘↩` to trigger Rewrite (already done in the view — verify it works). Consider adding `⌘W` to close panel.
-- [ ] **Onboarding flow.** On first launch (when `hasCompletedOnboarding == false`): show a one-time sheet that explains the two hotkeys (Globe = dictate, user-assigned = silent rewrite) and offers to open Preferences to assign the silent-rewrite hotkey. Mark complete on dismiss.
+- [x] **Native floating panel** — vibrancy, borderless, rounded corners, auto-sizing height animation
+- [x] **Result animation** — source fades to 45%, result slides in with spring physics
+- [x] **Word-level diff** — "What changed?" toggle, LCS algorithm, strikethrough + highlight
+- [x] **AI linter** — post-rewrite check against banned word list, yellow warning in card
+- [x] **Variants chip** — compact pill button instead of full button
+- [x] **Onboarding** — first launch modal, one-time
+- [x] **Startup error states** — Ollama unreachable or model missing → needsAttention in menu bar
+- [x] **Anthropic prompt caching** — `cache_control: ephemeral` on system prompt (~80% cost reduction)
+- [x] **Hold-to-talk only** — toggle mode removed
+- [x] **Prompt quality fix** — hard stop, input wrapper, temperature 0.3
 
----
-
-## v2.2 — Polish
-
-- [ ] **Wispr Dock icon.** Use the VP Rewriter's green rewrite icon as the Dock icon (currently showing AppIcon.icns which is the OpenWispr waveform). Update `bundle-app.sh` + Resources.
-- [ ] **Length control.** Add LENGTH selector to the rewrite sheet: Same / Shorten / Expand. Appends length prompt from VP Rewriter's `LENGTH_PROMPTS`. Default: Same.
-- [ ] **Copy Last Dictation** menu item — already present from OpenWispr, confirm it still works after the GRDB wiring.
-- [ ] **Rewrite history in the sheet.** After rewriting, show a "Rewrite again" button that lets you cycle through providers or re-run with a different style without closing the panel.
-- [ ] **Silent rewrite with style override.** If the hotkey is held for >1s, show the style picker as a HUD before running. Instant tap = use default style.
-- [ ] **Better error states.** When Ollama is unreachable on startup, set `statusBar.state = .needsAttention("Ollama not running")`. Clear when next rewrite succeeds.
+- [ ] **Evaluate Gemma 3 4B as local default.** Run against `gemma3:4b` — smaller, faster. Only switch if voice-preservation is equal or better. `ollama pull gemma3:4b`, compare 10 real dictations in everyday style.
+- [ ] **Stream Ollama responses.** `"stream": true`, token-by-token display in result card. Better perceived latency for longer rewrites.
+- [ ] **⌘W to close panel.** Currently only escapable by clicking outside. Add keyboard dismiss.
 
 ---
 
-## v2.3 — History & Search
+## v2.2 — History & Export
 
-- [ ] **Full-text search across rewrites.** The current search only hits transcript text; extend to search rewrite content too.
-- [ ] **Export.** "Export History" menu item → JSON or Markdown file with all transcripts + rewrites.
-- [ ] **Day grouping in history.** Section headers by date (Today, Yesterday, older by week).
-- [ ] **Rewrite comparison view.** Side-by-side diff of original transcript vs. rewrite in History viewer.
+- [ ] **Full-text search across rewrites.** Current search only hits transcript text; extend to rewrite content.
+- [ ] **Export history.** Menu item → JSON or Markdown with all transcripts + rewrites.
+- [ ] **Day grouping in History viewer.** Section headers: Today, Yesterday, by week.
+- [ ] **Wispr Dock icon.** Use VP Rewriter green icon for the Dock. Update `bundle-app.sh` + Resources.
+- [ ] **Silent rewrite style override.** Hold hotkey >1s → style picker HUD. Instant tap = default style.
+- [ ] **Rewrite-again in sheet.** Button to re-run with different style/provider without clearing the panel.
 
 ---
 
-## v2.4 — Providers
+## v2.3 — Providers
 
-- [ ] **GPT-5 model id.** Verify the correct GPT-5 model identifier and update `OpenAIProvider.defaultModel`. Current placeholder is `gpt-4o`.
-- [ ] **Anthropic prompt caching.** Enable cache_control on the system prompt (it's long and identical per style) to cut costs on Claude runs. Worth ~80% cache hit rate after the first call.
+- [ ] **GPT-5 model id.** Verify exact model identifier, update `OpenAIProvider.defaultModel` from `gpt-4o`.
 - [ ] **Apple Intelligence on-device.** Spike: use the Apple Foundation Models API (available on macOS 15.1+ / Apple Intelligence hardware) as a fourth provider. No API key, no network. Framed as "On-device (Apple)" in the picker. See `apple/python-apple-fm-sdk` for evaluation tooling.
 - [ ] **Ollama model auto-select.** On startup after probeModels(), if default model (`gemma3:4b`) isn't in availableModels, show a `needsAttention` warning with a "Pull model" action.
 

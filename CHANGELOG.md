@@ -2,6 +2,33 @@
 
 All notable changes to Wispr are documented here.
 
+## [2.1.0] — Unreleased (feature/merge-rewriter)
+
+### Added
+- **Native floating panel** — borderless, vibrancy-backed (`.sidebar` material, `.behindWindow`), 16px rounded corners, no title bar, `animationBehavior = .utilityWindow`. Follows all Spaces.
+- **Panel auto-sizing** — panel height animates smoothly as content changes (source only → rewrite result → variants → diff).
+- **Source text fade** — source area drops to 45% opacity when result arrives, keeping visual focus on the rewrite.
+- **Result slide-in animation** — result card slides up with spring physics when rewrite completes.
+- **Word-level diff view** (`WordDiff.swift`) — "What changed?" toggle shows LCS diff: removed words in ~~strikethrough red~~, added words highlighted green.
+- **AI linter** (`WisprLinter.swift`) — deterministic post-rewrite check against banned word list from `ai-blocklist.js`. Yellow warning in result card if AI tells detected.
+- **Variants chip** — "Get 3 variants" is now a compact pill/chip instead of a full button. Appears in the result action row.
+- **Onboarding** (`OnboardingView.swift`) — first launch modal explaining Globe key, rewrite panel, and silent hotkey. One-time, marks `hasCompletedOnboarding` in UserDefaults.
+- **Startup error states** — on launch, probes Ollama; if unreachable or default model missing, shows `needsAttention` in menu bar with explanatory message.
+- **Anthropic prompt caching** — `cache_control: ephemeral` on system prompt. After first call, ~80% cost reduction on the 1500-token system prompt for all subsequent Claude rewrites.
+- **Hold-to-talk only** — toggle mode removed. Globe key always means hold to dictate, release to stop.
+
+### Changed
+- Rewrite panel width: 500px → 560px
+- Segmented control labels: Shorter/Longer → Short/Long (fit in picker frame)
+- Temperature lowered 0.5 → 0.3 for more consistent output on local models
+- System prompt: hard stop added at top — model no longer responds conversationally when source text looks like a question
+- Input wrapper: all providers now send `"Rewrite this voice-to-text:\n\n[text]"` — eliminates the root cause of the conversational response bug
+
+### Fixed
+- REBUILD was spawning two instances: LaunchAgent `KeepAlive=true` + manual `open` call racing. Removed the manual launch step — LaunchAgent is the sole launch authority.
+
+---
+
 ## [2.0.0] — Unreleased (feature/merge-rewriter)
 
 ### Added

@@ -22,12 +22,21 @@ final class AnthropicProvider: RewriteProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("prompt-caching-2024-07-31", forHTTPHeaderField: "anthropic-beta")
 
+        // cache_control on the system prompt caches the ~1500-token system prompt across calls.
+        // After the first request, subsequent calls see ~80% token cost reduction for the system portion.
         let body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
             "temperature": temperature,
-            "system": systemPrompt,
+            "system": [
+                [
+                    "type": "text",
+                    "text": systemPrompt,
+                    "cache_control": ["type": "ephemeral"],
+                ]
+            ],
             "messages": [["role": "user", "content": "Rewrite this voice-to-text:\n\n\(text)"]],
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

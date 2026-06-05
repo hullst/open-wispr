@@ -1,6 +1,13 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Size tracking
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 // MARK: - Data types
 
 struct RewriteVariant: Identifiable {
@@ -12,14 +19,9 @@ struct RewriteVariant: Identifiable {
     var isLoading: Bool = true
 }
 
-enum RewriteMode {
-    case idle
-    case rewriting      // single in-flight
-    case result         // single done
-    case variants       // 3 in-flight or done
-}
+enum RewriteMode { case idle, rewriting, result, variants }
 
-// MARK: - View Model
+// MARK: - ViewModel
 
 @MainActor
 final class RewriteViewModel: ObservableObject {
@@ -31,6 +33,12 @@ final class RewriteViewModel: ObservableObject {
     @Published var primaryResult: RewriteVariant? = nil
     @Published var variants: [RewriteVariant] = []
     @Published var errorMessage: String? = nil
+    @Published var showDiff: Bool = false
+
+    var linterResult: LinterResult {
+        guard let v = primaryResult, !v.text.isEmpty else { return LinterResult(violations: []) }
+        return WisprLinter.check(v.text)
+    }
 
     var configuredProviders: [(id: String, name: String)] {
         RewriteService.shared.configuredProviders.map { ($0.id, $0.displayName) }
@@ -51,18 +59,20 @@ final class RewriteViewModel: ObservableObject {
     func cancel() {
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
-        mode = .idle
-        primaryResult = nil
-        variants = []
+        withAnimation(.easeOut(duration: 0.2)) {
+            mode = .idle
+            primaryResult = nil
+            variants = []
+            showDiff = false
+        }
         errorMessage = nil
     }
 
-    // Single rewrite.
     func rewrite() {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         cancel()
-        mode = .rewriting
+        withAnimation(.easeOut(duration: 0.15)) { mode = .rewriting }
         errorMessage = nil
 
         let providerId = selectedProviderId
@@ -83,8 +93,10 @@ final class RewriteViewModel: ObservableObject {
                     v.text = result.text
                     v.latencyMs = result.latencyMs
                     v.isLoading = false
-                    self.primaryResult = v
-                    self.mode = .result
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        self.primaryResult = v
+                        self.mode = .result
+                    }
                     if WisprDefaults.shared.autoPasteRewrites { self.paste(result.text) }
                 }
             } catch {
@@ -92,21 +104,22 @@ final class RewriteViewModel: ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     self.errorMessage = error.localizedDescription
-                    self.mode = .idle
+                    withAnimation { self.mode = .idle }
                 }
             }
         }
         activeTasks.append(task)
     }
 
-    // Expand to 3 variants. Runs alongside or replaces the primary result.
     func getVariants() {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
-        mode = .variants
-        variants = [RewriteVariant(index: 0), RewriteVariant(index: 1), RewriteVariant(index: 2)]
+        withAnimation(.easeOut(duration: 0.15)) {
+            mode = .variants
+            variants = [RewriteVariant(index: 0), RewriteVariant(index: 1), RewriteVariant(index: 2)]
+        }
 
         let providerId = selectedProviderId
         let styleId = selectedStyleId
@@ -123,9 +136,11 @@ final class RewriteViewModel: ObservableObject {
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
                         guard let self else { return }
-                        self.variants[i].text = result.text
-                        self.variants[i].latencyMs = result.latencyMs
-                        self.variants[i].isLoading = false
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            self.variants[i].text = result.text
+                            self.variants[i].latencyMs = result.latencyMs
+                            self.variants[i].isLoading = false
+                        }
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
@@ -141,10 +156,9 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func paste(_ text: String) {
-        let t = text
         NSApp.hide(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            TextInserter().insert(text: t)
+            TextInserter().insert(text: text)
         }
     }
 
@@ -164,9 +178,18 @@ struct RewriteView: View {
             sourceSection
             Divider()
             controlsRow
-            if vm.errorMessage != nil || vm.mode == .result || vm.mode == .rewriting {
+
+            if let err = vm.errorMessage {
                 Divider()
-                resultSection
+                errorRow(err)
+            }
+            if vm.mode == .rewriting {
+                Divider()
+                loadingRow
+            }
+            if vm.mode == .result, let v = vm.primaryResult, !v.isLoading {
+                Divider()
+                resultCard(v)
             }
             if vm.mode == .variants {
                 Divider()
@@ -180,6 +203,14 @@ struct RewriteView: View {
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
                 .allowsHitTesting(false)
         )
+        .background(
+            GeometryReader { g in
+                Color.clear.preference(key: ContentHeightKey.self, value: g.size.height)
+            }
+        )
+        .onPreferenceChange(ContentHeightKey.self) { h in
+            Task { @MainActor in RewritePanel.shared.resizeTo(height: h) }
+        }
     }
 
     // MARK: Source
@@ -197,10 +228,13 @@ struct RewriteView: View {
             TextEditor(text: $vm.sourceText)
                 .font(.body)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 72, maxHeight: 120)
+                .frame(minHeight: 70, maxHeight: 120)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
         }
+        // Source fades when a result is showing — keeps focus on the rewrite.
+        .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
+        .animation(.easeOut(duration: 0.25), value: vm.mode)
     }
 
     // MARK: Controls
@@ -242,56 +276,111 @@ struct RewriteView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: Single result
+    // MARK: Loading
 
-    @ViewBuilder
-    private var resultSection: some View {
-        if let err = vm.errorMessage {
-            HStack {
-                Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
-                Text(err).font(.caption).foregroundColor(.red)
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-        } else if vm.mode == .rewriting {
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Rewriting…").foregroundColor(.secondary).font(.body)
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-        } else if let v = vm.primaryResult, !v.isLoading {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(v.text)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Rewriting…").foregroundColor(.secondary).font(.body)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .transition(.opacity)
+    }
 
-                HStack(spacing: 6) {
-                    Button("Paste") { vm.paste(v.text) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .keyboardShortcut(.return, modifiers: [.command, .shift])
-                    Button("Copy") { vm.copy(v.text) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    Spacer()
-                    if v.latencyMs > 0 {
-                        Text("\(v.latencyMs)ms")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    Button("Get 3 variants") { vm.getVariants() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+    // MARK: Error
+
+    private func errorRow(_ msg: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle").foregroundColor(.red).font(.caption)
+            Text(msg).font(.caption).foregroundColor(.red)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .transition(.opacity)
+    }
+
+    // MARK: Single result card
+
+    private func resultCard(_ v: RewriteVariant) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Rewritten text
+            Text(v.text)
+                .font(.body)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+            // AI linter warning
+            let lint = vm.linterResult
+            if !lint.isClean {
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundColor(Color(red: 0.9, green: 0.7, blue: 0.0))
+                    Text("AI tells: \(lint.summary)")
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
+                .transition(.opacity)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+
+            // Diff toggle
+            if !vm.sourceText.isEmpty {
+                Button(vm.showDiff ? "Hide diff" : "What changed?") {
+                    withAnimation(.easeOut(duration: 0.18)) { vm.showDiff.toggle() }
+                }
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .buttonStyle(.plain)
+
+                if vm.showDiff {
+                    let tokens = WordDiff.diff(original: vm.sourceText, rewritten: v.text)
+                    Text(WordDiff.attributedString(from: tokens))
+                        .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color(NSColor.quaternaryLabelColor).opacity(0.4))
+                        .cornerRadius(6)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+
+            // Action row
+            HStack(spacing: 6) {
+                Button("Paste") { vm.paste(v.text) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+                Button("Copy") { vm.copy(v.text) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                Spacer()
+
+                if v.latencyMs > 0 {
+                    Text("\(v.latencyMs)ms")
+                        .font(.caption2)
+                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                }
+
+                // Variants chip
+                Button { vm.getVariants() } label: {
+                    Text("+ 3 variants")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color(NSColor.quaternaryLabelColor)))
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     // MARK: Variants
@@ -331,6 +420,7 @@ struct RewriteView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
+                    .transition(.opacity)
             }
 
             if !v.isLoading && v.error == nil {
@@ -351,7 +441,7 @@ struct RewriteView: View {
     }
 }
 
-// MARK: - Panel controller
+// MARK: - NSImage mask helper
 
 private extension NSImage {
     static func vibrancyMask(cornerRadius: CGFloat) -> NSImage {
@@ -366,6 +456,8 @@ private extension NSImage {
         return image
     }
 }
+
+// MARK: - Panel controller
 
 @MainActor
 final class RewritePanel {
@@ -388,26 +480,33 @@ final class RewritePanel {
         stopOutsideClickMonitor()
     }
 
+    // Called by the SwiftUI view via preference to animate panel height.
+    func resizeTo(height: CGFloat) {
+        guard let p = panel else { return }
+        let clamped = max(140, min(680, ceil(height)))
+        guard abs(p.frame.size.height - clamped) > 1 else { return }
+        var frame = p.frame
+        let topY = frame.maxY  // anchor the top edge (macOS: y=0 at bottom of screen)
+        frame.size.height = clamped
+        frame.origin.y = topY - clamped
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.22
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            p.animator().setFrame(frame, display: true, animate: true)
+        }
+    }
+
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 200),
-            styleMask: [
-                .nonactivatingPanel,
-                .titled,
-                .fullSizeContentView,
-                .resizable,
-            ],
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 160),
+            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
         )
-
-        // Chrome
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.isOpaque = false
         p.backgroundColor = .clear
-
-        // Behavior
         p.isMovableByWindowBackground = true
         p.isFloatingPanel = true
         p.level = .floating
@@ -417,22 +516,19 @@ final class RewritePanel {
         p.isReleasedWhenClosed = false
         p.animationBehavior = .utilityWindow
         p.hasShadow = true
-        p.contentMinSize = NSSize(width: 400, height: 160)
-        p.contentMaxSize = NSSize(width: 800, height: 700)
+        p.contentMinSize = NSSize(width: 420, height: 140)
+        p.contentMaxSize = NSSize(width: 800, height: 720)
 
-        // Hide traffic lights
         [p.standardWindowButton(.closeButton),
          p.standardWindowButton(.miniaturizeButton),
          p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
 
-        // Vibrancy backing
         let vibrancy = NSVisualEffectView()
         vibrancy.blendingMode = .behindWindow
         vibrancy.state = .active
         vibrancy.material = .sidebar
         vibrancy.maskImage = .vibrancyMask(cornerRadius: 16)
 
-        // SwiftUI content on top of vibrancy
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         hosting.translatesAutoresizingMaskIntoConstraints = false
         vibrancy.addSubview(hosting)
@@ -454,10 +550,8 @@ final class RewritePanel {
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
-            // Only dismiss when idle or showing a result — not while actively rewriting.
             guard let self, let p = self.panel, p.isVisible else { return }
-            let vm = self.vm
-            if vm.mode == .idle { self.hide() }
+            if self.vm.mode == .idle { self.hide() }
         }
     }
 
