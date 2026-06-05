@@ -169,7 +169,10 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func paste(_ text: String) {
-        NSApp.hide(nil)
+        // Explicitly close the panel rather than hiding the whole app.
+        // NSApp.hide() fights with isFloatingPanel + hidesOnDeactivate=false
+        // and causes the panel to flash back after paste.
+        RewritePanel.shared.closeForPaste()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             TextInserter().insert(text: text)
         }
@@ -188,12 +191,6 @@ struct RewriteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Recent transcripts always at top when available
-            if !vm.recentTranscripts.isEmpty {
-                recentsSection
-                Divider()
-            }
-
             sourceSection
             Divider()
             controlsRow
@@ -213,6 +210,12 @@ struct RewriteView: View {
             if vm.mode == .variants {
                 Divider()
                 variantsSection
+            }
+
+            // Recent dictations at bottom — tap any to load into source
+            if !vm.recentTranscripts.isEmpty {
+                Divider()
+                recentsSection
             }
         }
         .frame(width: 560)
@@ -542,6 +545,18 @@ final class RewritePanel {
     func hide() {
         panel?.orderOut(nil)
         stopOutsideClickMonitor()
+    }
+
+    // Called after auto-paste — closes panel without resetting source text
+    // so if the user reopens they can try a different style or variant.
+    func closeForPaste() {
+        panel?.orderOut(nil)
+        stopOutsideClickMonitor()
+        withAnimation(.easeOut(duration: 0.15)) {
+            vm.mode = .idle
+            vm.primaryResult = nil
+            vm.variants = []
+        }
     }
 
     func resizeTo(height: CGFloat) {
