@@ -5,73 +5,86 @@ struct OnboardingView: View {
     var onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Header
+        VStack(spacing: 0) {
+            // Header toolbar — matches History/Rewrite/Preferences style
             HStack(spacing: 12) {
                 Image(systemName: "waveform.and.mic")
-                    .font(.system(size: 32))
+                    .font(.title2)
                     .foregroundColor(.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text("Welcome to Wispr")
-                        .font(.title2.weight(.semibold))
+                        .font(.headline)
                     Text("Dictation + rewriting, always on.")
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                Spacer()
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(NSColor.controlBackgroundColor))
 
             Divider()
 
-            // Step 1
+            // Steps — same row style as History list
             stepRow(
                 icon: "globe",
                 title: "Hold Globe key to dictate",
-                body: "Hold the Globe / fn key, speak, release. Your words appear at the cursor — nothing else to click."
+                body: "Hold Globe / fn, speak, release. Words appear at your cursor instantly."
             )
+            Divider().padding(.leading, 50)
 
-            // Step 2
             stepRow(
                 icon: "pencil.and.sparkles",
                 title: "Rewrite from the menu bar",
-                body: "Click the waveform icon → Rewrite Last Transcript to clean up what you just said. Pick a style and hit Rewrite."
+                body: "Click the waveform icon → Rewrite Last Transcript. Pick a style and hit Rewrite."
             )
+            Divider().padding(.leading, 50)
 
-            // Step 3
             stepRow(
                 icon: "keyboard",
-                title: "Set a silent rewrite hotkey (optional)",
-                body: "Assign a hotkey in Preferences → Hotkeys. Press it after dictating and the rewrite pastes instantly — no panel shown."
+                title: "Set a silent rewrite hotkey",
+                body: "In Preferences → Hotkeys, assign a chord. Press it after dictating — rewrites and pastes with no panel."
             )
+
+            Spacer()
 
             Divider()
 
+            // Footer toolbar — matches History toolbar style
             HStack {
-                Spacer()
                 Button("Open Preferences") {
                     onDismiss()
                     Task { @MainActor in PreferencesWindowController.shared.show() }
                 }
                 .buttonStyle(.bordered)
+                Spacer()
                 Button("Get Started") { onDismiss() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.return)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(NSColor.controlBackgroundColor))
         }
-        .padding(24)
-        .frame(width: 440)
+        .frame(width: 480)
     }
 
     private func stepRow(icon: String, title: String, body: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.body)
                 .foregroundColor(.accentColor)
-                .frame(width: 24)
+                .frame(width: 22)
+                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.headline)
-                Text(body).font(.subheadline).foregroundColor(.secondary)
+                Text(title).font(.subheadline.weight(.medium))
+                Text(body).font(.caption).foregroundColor(.secondary)
             }
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
@@ -92,7 +105,7 @@ final class OnboardingWindowController {
                 self?.dismiss()
             })
             let w = NSWindow(contentViewController: host)
-            w.title = "Welcome to Wispr"
+            w.title = "Wispr — Welcome"
             w.styleMask = [.titled, .closable]
             w.center()
             w.isReleasedWhenClosed = false
