@@ -247,26 +247,11 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleKeyDown() {
-        guard isReady else { return }
-
-        let isToggle = config.toggleMode?.value ?? false
-
-        if isToggle {
-            if isPressed {
-                handleRecordingStop()
-            } else {
-                handleRecordingStart()
-            }
-        } else {
-            guard !isPressed else { return }
-            handleRecordingStart()
-        }
+        guard isReady, !isPressed else { return }
+        handleRecordingStart()
     }
 
     private func handleKeyUp() {
-        let isToggle = config.toggleMode?.value ?? false
-        if isToggle { return }
-
         handleRecordingStop()
     }
 

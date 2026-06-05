@@ -272,21 +272,6 @@ class StatusBarController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
-        let toggleTarget = MenuItemTarget { [weak self] in
-            var cfg = Config.load()
-            let current = cfg.toggleMode?.value ?? false
-            cfg.toggleMode = FlexBool(!current)
-            try? cfg.save()
-            self?.onConfigChange?(cfg)
-        }
-        menuItemTargets.append(toggleTarget)
-        let toggleItem = NSMenuItem(title: "Toggle Mode", action: #selector(MenuItemTarget.invoke), keyEquivalent: "")
-        toggleItem.target = toggleTarget
-        toggleItem.state = (config.toggleMode?.value ?? false) ? .on : .off
-        menu.addItem(toggleItem)
-
-        menu.addItem(NSMenuItem.separator())
-
         let lastText = (NSApplication.shared.delegate as? AppDelegate)?.lastTranscription
         let copyTitle = copiedFeedback ? "Copied!" : "Copy Last Dictation"
         let copyItem = NSMenuItem(title: copyTitle, action: lastText != nil && !copiedFeedback ? #selector(copyLastTranscription) : nil, keyEquivalent: "c")
