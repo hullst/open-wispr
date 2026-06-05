@@ -101,4 +101,4 @@ Active branch: `feature/merge-rewriter`
 
 ## Documented solutions
 
-`docs/solutions/` (if present) — past build errors, runtime issues, workflow patterns with YAML frontmatter.
+`docs/solutions/` — documented solutions to past problems (build errors, runtime issues, tooling decisions, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing features or debugging in documented areas.
