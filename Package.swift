@@ -5,19 +5,20 @@ let package = Package(
     name: "Wispr",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "6.0.0"),
     ],
     targets: [
         .target(
             name: "WisprLib",
             dependencies: [
-                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+                .product(name: "GRDB", package: "GRDB.swift"),
             ],
             path: "Sources/OpenWisprLib",
             linkerSettings: [
                 .linkedFramework("CoreAudio"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("AppKit"),
+                .linkedFramework("Security"),
             ]
         ),
         .executableTarget(

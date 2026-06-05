@@ -38,7 +38,7 @@ struct Permissions {
         let configDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/open-wispr")
         let versionFile = configDir.appendingPathComponent(".last-version")
-        let current = OpenWispr.version
+        let current = Wispr.version
         let raw = (try? String(contentsOf: versionFile, encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let previous = raw.isEmpty ? nil : raw

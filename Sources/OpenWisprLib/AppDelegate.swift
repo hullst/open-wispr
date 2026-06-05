@@ -145,7 +145,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         statusBar.buildMenu()
 
         let hotkeyDesc = config.hotkeySummary()
-        print("open-wispr v\(OpenWispr.version)")
+        print("open-wispr v\(Wispr.version)")
         print("Hotkey: \(hotkeyDesc)")
         print("Model: \(config.modelSize)")
         print("Ready.")
@@ -318,6 +318,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                     if !text.isEmpty {
                         let polished = TextPolisher.polish(text)
                         self.lastTranscription = polished
+                        PersistenceContainer.shared.insertTranscript(text: polished, source: "dictation")
                         self.inserter.insert(text: polished)
                     }
                     // Only hide the pill if the user hasn't already started a new

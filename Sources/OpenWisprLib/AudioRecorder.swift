@@ -55,7 +55,7 @@ class AudioRecorder {
 
         guard let engine = audioEngine else {
             throw NSError(
-                domain: "OpenWispr.AudioRecorder",
+                domain: "Wispr.AudioRecorder",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Audio engine is not available"]
             )

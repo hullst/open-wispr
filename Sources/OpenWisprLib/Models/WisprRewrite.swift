@@ -1,0 +1,39 @@
+import GRDB
+import Foundation
+
+struct WisprRewrite: Codable, FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "rewrites"
+
+    var id: Int64?
+    var transcriptId: Int64?
+    var originalText: String
+    var rewrittenText: String
+    var modelId: String
+    var provider: String
+    var styleId: String?
+    var latencyMs: Int
+    var createdAt: Date
+
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+
+    init(
+        transcriptId: Int64? = nil,
+        originalText: String,
+        rewrittenText: String,
+        modelId: String,
+        provider: String,
+        styleId: String? = nil,
+        latencyMs: Int
+    ) {
+        self.transcriptId = transcriptId
+        self.originalText = originalText
+        self.rewrittenText = rewrittenText
+        self.modelId = modelId
+        self.provider = provider
+        self.styleId = styleId
+        self.latencyMs = latencyMs
+        self.createdAt = Date()
+    }
+}
