@@ -27,7 +27,7 @@ final class OllamaProvider: RewriteProvider {
         }
     }
 
-    func rewrite(text: String, systemPrompt: String, maxTokens: Int, temperature: Double = 0.5) async throws -> RewriteResult {
+    func rewrite(text: String, systemPrompt: String, maxTokens: Int, temperature: Double = 0.3) async throws -> RewriteResult {
         let url = baseURL.appendingPathComponent("/api/generate")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -35,7 +35,7 @@ final class OllamaProvider: RewriteProvider {
 
         let body: [String: Any] = [
             "model": selectedModel,
-            "prompt": text,
+            "prompt": "Rewrite this voice-to-text:\n\n\(text)",
             "system": systemPrompt,
             "stream": false,
             "options": ["num_predict": maxTokens, "temperature": temperature],

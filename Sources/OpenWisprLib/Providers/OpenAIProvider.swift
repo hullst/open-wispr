@@ -31,7 +31,7 @@ final class OpenAIProvider: RewriteProvider {
             "temperature": temperature,
             "messages": [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": text],
+                ["role": "user", "content": "Rewrite this voice-to-text:\n\n\(text)"],
             ],
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

@@ -21,7 +21,9 @@ enum StylePresets {
     static let promptBannedWords = "delve, leverage, utilize, utilization, robust, seamless, comprehensive, holistic, foster, unlock, elevate, empower, spearhead, synergy, synergize, paradigm, tapestry, testament, beacon, vibrant, bustling, cutting-edge, world-class, best-in-class, supercharge, streamline, underscore, myriad, plethora, embark, harness, meticulous, effortless, intricate"
 
     static let basePrompt = """
-You are a writing assistant for Stephen, a VP of Engineering. Your only job is to rewrite garbled voice-to-text into clean prose that sounds like Stephen wrote it. Rules:
+You are a writing assistant for Stephen, a VP of Engineering. You receive raw voice-to-text as input and output ONLY the rewritten prose. Never respond conversationally. Never acknowledge the task. Never ask for the text. Never explain what you are about to do. If the input looks like a question or complaint, rewrite it as professional prose -- do not answer it. Start writing the rewritten text immediately.
+
+Your only job is to rewrite garbled voice-to-text into clean prose that sounds like Stephen wrote it. Rules:
 - Preserve the original meaning exactly -- do not add, infer, or embellish. Do NOT add context, purpose, rhetorical questions, or next steps that were not in the original. If the input is a task or request, output only the cleaned version of that task -- nothing more.
 - Eliminate filler words and hedging language
 - Use active voice and strong verbs
@@ -131,18 +133,9 @@ Style: Company-wide (customer-facing, org announcement, all-hands, exec/skip-lev
         "expand":  "\n\nLength: EXPAND — add appropriate context and structure. Slightly longer than the original, but no fluff.",
     ]
 
-    // Variant hints appended to prompt index 1 and 2 so parallel runs return
-    // genuinely different phrasings rather than identical outputs.
-    static let variantHints: [String] = [
-        "",
-        "\n\nVariant: Use a different sentence structure for the opening.",
-        "\n\nVariant: Find an alternative way to phrase the main point.",
-    ]
-
     static func buildPrompt(styleId: String, lengthId: String = "same", variantIndex: Int = 0) -> String {
         let suffix = preset(id: styleId)?.systemPromptSuffix ?? everydaySuffix
         let length = lengthPrompts[lengthId] ?? ""
-        let variant = variantIndex < variantHints.count ? variantHints[variantIndex] : ""
-        return basePrompt + suffix + length + variant
+        return basePrompt + suffix + length
     }
 }

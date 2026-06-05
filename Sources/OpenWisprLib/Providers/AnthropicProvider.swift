@@ -28,7 +28,7 @@ final class AnthropicProvider: RewriteProvider {
             "max_tokens": maxTokens,
             "temperature": temperature,
             "system": systemPrompt,
-            "messages": [["role": "user", "content": text]],
+            "messages": [["role": "user", "content": "Rewrite this voice-to-text:\n\n\(text)"]],
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
