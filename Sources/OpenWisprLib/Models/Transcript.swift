@@ -1,7 +1,7 @@
 import GRDB
 import Foundation
 
-struct Transcript: Codable, FetchableRecord, MutablePersistableRecord {
+struct Transcript: Codable, FetchableRecord, MutablePersistableRecord, Identifiable {
     static let databaseTableName = "transcripts"
 
     var id: Int64?

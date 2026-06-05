@@ -14,6 +14,7 @@ struct RewriteVariant: Identifiable {
     let id = UUID()
     let index: Int
     var text: String = ""
+    var sourceText: String = ""  // snapshot of source when this rewrite ran (for diff)
     var latencyMs: Int = 0
     var error: String? = nil
     var isLoading: Bool = true
@@ -34,6 +35,7 @@ final class RewriteViewModel: ObservableObject {
     @Published var variants: [RewriteVariant] = []
     @Published var errorMessage: String? = nil
     @Published var showDiff: Bool = false
+    @Published var recentTranscripts: [Transcript] = []
 
     var linterResult: LinterResult {
         guard let v = primaryResult, !v.text.isEmpty else { return LinterResult(violations: []) }
@@ -49,11 +51,17 @@ final class RewriteViewModel: ObservableObject {
     init() {
         selectedProviderId = WisprDefaults.shared.defaultProviderId
         selectedStyleId = WisprDefaults.shared.defaultStyleId
+        loadRecents()
+    }
+
+    func loadRecents() {
+        recentTranscripts = PersistenceContainer.shared.allTranscripts(limit: 5)
     }
 
     func prefill(text: String) {
         sourceText = text
         cancel()
+        loadRecents()
     }
 
     func cancel() {
@@ -75,6 +83,7 @@ final class RewriteViewModel: ObservableObject {
         withAnimation(.easeOut(duration: 0.15)) { mode = .rewriting }
         errorMessage = nil
 
+        let source = text  // capture for diff
         let providerId = selectedProviderId
         let styleId = selectedStyleId
         let lengthId = selectedLengthId
@@ -91,6 +100,7 @@ final class RewriteViewModel: ObservableObject {
                     guard let self else { return }
                     var v = RewriteVariant(index: 0)
                     v.text = result.text
+                    v.sourceText = source
                     v.latencyMs = result.latencyMs
                     v.isLoading = false
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -116,6 +126,8 @@ final class RewriteViewModel: ObservableObject {
         guard !text.isEmpty else { return }
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
+
+        let source = text
         withAnimation(.easeOut(duration: 0.15)) {
             mode = .variants
             variants = [RewriteVariant(index: 0), RewriteVariant(index: 1), RewriteVariant(index: 2)]
@@ -138,6 +150,7 @@ final class RewriteViewModel: ObservableObject {
                         guard let self else { return }
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             self.variants[i].text = result.text
+                            self.variants[i].sourceText = source
                             self.variants[i].latencyMs = result.latencyMs
                             self.variants[i].isLoading = false
                         }
@@ -175,6 +188,12 @@ struct RewriteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Recent transcripts always at top when available
+            if !vm.recentTranscripts.isEmpty {
+                recentsSection
+                Divider()
+            }
+
             sourceSection
             Divider()
             controlsRow
@@ -197,10 +216,12 @@ struct RewriteView: View {
             }
         }
         .frame(width: 560)
-        .background(.clear)
+        // Clean adaptive solid background — no vibrancy bleed from surrounding apps.
+        .background(Color(NSColor.windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+                .strokeBorder(Color(NSColor.separatorColor), lineWidth: 1)
                 .allowsHitTesting(false)
         )
         .background(
@@ -232,15 +253,67 @@ struct RewriteView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
         }
-        // Source fades when a result is showing — keeps focus on the rewrite.
         .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
         .animation(.easeOut(duration: 0.25), value: vm.mode)
+    }
+
+    // MARK: Recent transcripts
+
+    private var recentsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("RECENT DICTATIONS")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                .kerning(0.5)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+            ForEach(vm.recentTranscripts.prefix(4)) { t in
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        vm.sourceText = t.text
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(Color(NSColor.quaternaryLabelColor))
+                        Text(t.text)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
+                        Spacer(minLength: 8)
+                        Text(relativeTime(t.createdAt))
+                            .font(.caption2)
+                            .foregroundColor(Color(NSColor.quaternaryLabelColor))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+                    .background(Color.clear)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    Color(NSColor.selectedContentBackgroundColor).opacity(0.001) // make entire row tappable
+                )
+            }
+        }
+        .padding(.bottom, 6)
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let diff = Date().timeIntervalSince(date)
+        if diff < 60 { return "just now" }
+        if diff < 3600 { return "\(Int(diff / 60))m ago" }
+        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
+        return "\(Int(diff / 86400))d ago"
     }
 
     // MARK: Controls
 
     private var controlsRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             Picker("", selection: $vm.selectedLengthId) {
                 Text("Short").tag("shorten")
                 Text("Same").tag("same")
@@ -249,6 +322,11 @@ struct RewriteView: View {
             .pickerStyle(.segmented)
             .frame(width: 148)
             .labelsHidden()
+
+            // Explicit gap between the two pickers so they read as separate controls
+            Spacer().frame(width: 12)
+            Color(NSColor.separatorColor).frame(width: 0.5, height: 20)
+            Spacer().frame(width: 12)
 
             Picker("", selection: $vm.selectedStyleId) {
                 Text("Everyday").tag("everyday")
@@ -306,7 +384,6 @@ struct RewriteView: View {
 
     private func resultCard(_ v: RewriteVariant) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Rewritten text
             Text(v.text)
                 .font(.body)
                 .textSelection(.enabled)
@@ -328,7 +405,7 @@ struct RewriteView: View {
             }
 
             // Diff toggle
-            if !vm.sourceText.isEmpty {
+            if !v.sourceText.isEmpty {
                 Button(vm.showDiff ? "Hide diff" : "What changed?") {
                     withAnimation(.easeOut(duration: 0.18)) { vm.showDiff.toggle() }
                 }
@@ -337,12 +414,12 @@ struct RewriteView: View {
                 .buttonStyle(.plain)
 
                 if vm.showDiff {
-                    let tokens = WordDiff.diff(original: vm.sourceText, rewritten: v.text)
+                    let tokens = WordDiff.diff(original: v.sourceText, rewritten: v.text)
                     Text(WordDiff.attributedString(from: tokens))
                         .font(.caption)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
-                        .background(Color(NSColor.quaternaryLabelColor).opacity(0.4))
+                        .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(6)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -366,7 +443,6 @@ struct RewriteView: View {
                         .foregroundColor(Color(NSColor.tertiaryLabelColor))
                 }
 
-                // Variants chip
                 Button { vm.getVariants() } label: {
                     Text("+ 3 variants")
                         .font(.caption2)
@@ -441,22 +517,6 @@ struct RewriteView: View {
     }
 }
 
-// MARK: - NSImage mask helper
-
-private extension NSImage {
-    static func vibrancyMask(cornerRadius: CGFloat) -> NSImage {
-        let size = NSSize(width: cornerRadius * 2, height: cornerRadius * 2)
-        let image = NSImage(size: size, flipped: false) { rect in
-            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius,
-                                        bottom: cornerRadius, right: cornerRadius)
-        image.resizingMode = .stretch
-        return image
-    }
-}
-
 // MARK: - Panel controller
 
 @MainActor
@@ -469,7 +529,11 @@ final class RewritePanel {
     private init() {}
 
     func show(prefill text: String? = nil) {
-        if let t = text { vm.prefill(text: t) }
+        if let t = text {
+            vm.prefill(text: t)
+        } else {
+            vm.loadRecents()
+        }
         if panel == nil { panel = buildPanel() }
         panel?.makeKeyAndOrderFront(nil)
         startOutsideClickMonitor()
@@ -480,13 +544,12 @@ final class RewritePanel {
         stopOutsideClickMonitor()
     }
 
-    // Called by the SwiftUI view via preference to animate panel height.
     func resizeTo(height: CGFloat) {
         guard let p = panel else { return }
         let clamped = max(140, min(680, ceil(height)))
         guard abs(p.frame.size.height - clamped) > 1 else { return }
         var frame = p.frame
-        let topY = frame.maxY  // anchor the top edge (macOS: y=0 at bottom of screen)
+        let topY = frame.maxY
         frame.size.height = clamped
         frame.origin.y = topY - clamped
         NSAnimationContext.runAnimationGroup { ctx in
@@ -505,6 +568,8 @@ final class RewritePanel {
         )
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
+        // Transparent window background — SwiftUI view draws its own solid background
+        // with clean rounded corners via .clipShape(RoundedRectangle).
         p.isOpaque = false
         p.backgroundColor = .clear
         p.isMovableByWindowBackground = true
@@ -523,23 +588,11 @@ final class RewritePanel {
          p.standardWindowButton(.miniaturizeButton),
          p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
 
-        let vibrancy = NSVisualEffectView()
-        vibrancy.blendingMode = .behindWindow
-        vibrancy.state = .active
-        vibrancy.material = .sidebar
-        vibrancy.maskImage = .vibrancyMask(cornerRadius: 16)
-
+        // Plain hosting view — no vibrancy, background handled by SwiftUI
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         hosting.translatesAutoresizingMaskIntoConstraints = false
-        vibrancy.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.topAnchor.constraint(equalTo: vibrancy.topAnchor),
-            hosting.leadingAnchor.constraint(equalTo: vibrancy.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: vibrancy.trailingAnchor),
-            hosting.bottomAnchor.constraint(equalTo: vibrancy.bottomAnchor),
-        ])
+        p.contentView = hosting
 
-        p.contentView = vibrancy
         p.setFrameAutosaveName("WisprRewritePanel")
         p.center()
         return p
