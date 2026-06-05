@@ -208,12 +208,12 @@ struct RewriteView: View {
     private var controlsRow: some View {
         HStack(spacing: 8) {
             Picker("", selection: $vm.selectedLengthId) {
-                Text("Shorter").tag("shorten")
+                Text("Short").tag("shorten")
                 Text("Same").tag("same")
-                Text("Longer").tag("expand")
+                Text("Long").tag("expand")
             }
             .pickerStyle(.segmented)
-            .frame(width: 168)
+            .frame(width: 148)
             .labelsHidden()
 
             Picker("", selection: $vm.selectedStyleId) {
@@ -222,7 +222,7 @@ struct RewriteView: View {
                 Text("Co-wide").tag("companywide")
             }
             .pickerStyle(.segmented)
-            .frame(width: 168)
+            .frame(width: 172)
             .labelsHidden()
 
             Spacer()
