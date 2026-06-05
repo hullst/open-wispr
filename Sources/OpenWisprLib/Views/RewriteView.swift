@@ -1,20 +1,13 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Size tracking
-
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 // MARK: - Data types
 
 struct RewriteVariant: Identifiable {
     let id = UUID()
     let index: Int
     var text: String = ""
-    var sourceText: String = ""  // snapshot of source when this rewrite ran (for diff)
+    var sourceText: String = ""
     var latencyMs: Int = 0
     var error: String? = nil
     var isLoading: Bool = true
@@ -67,7 +60,7 @@ final class RewriteViewModel: ObservableObject {
     func cancel() {
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.easeOut(duration: 0.18)) {
             mode = .idle
             primaryResult = nil
             variants = []
@@ -80,10 +73,10 @@ final class RewriteViewModel: ObservableObject {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         cancel()
-        withAnimation(.easeOut(duration: 0.15)) { mode = .rewriting }
+        withAnimation { mode = .rewriting }
         errorMessage = nil
 
-        let source = text  // capture for diff
+        let source = text
         let providerId = selectedProviderId
         let styleId = selectedStyleId
         let lengthId = selectedLengthId
@@ -128,7 +121,7 @@ final class RewriteViewModel: ObservableObject {
         activeTasks = []
 
         let source = text
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation {
             mode = .variants
             variants = [RewriteVariant(index: 0), RewriteVariant(index: 1), RewriteVariant(index: 2)]
         }
@@ -169,9 +162,6 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func paste(_ text: String) {
-        // Explicitly close the panel rather than hiding the whole app.
-        // NSApp.hide() fights with isFloatingPanel + hidesOnDeactivate=false
-        // and causes the panel to flash back after paste.
         RewritePanel.shared.closeForPaste()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             TextInserter().insert(text: text)
@@ -191,7 +181,8 @@ struct RewriteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            sourceSection
+            // Source input — same toolbar style as History search bar
+            sourceToolbar
             Divider()
             controlsRow
 
@@ -205,112 +196,48 @@ struct RewriteView: View {
             }
             if vm.mode == .result, let v = vm.primaryResult, !v.isLoading {
                 Divider()
-                resultCard(v)
+                resultRow(v)
             }
             if vm.mode == .variants {
                 Divider()
                 variantsSection
             }
 
-            // Recent dictations at bottom — tap any to load into source
+            // Recent dictations — same list style as History window
             if !vm.recentTranscripts.isEmpty {
                 Divider()
-                recentsSection
+                recentsList
             }
-        }
-        .frame(width: 560)
-        // Clean adaptive solid background — no vibrancy bleed from surrounding apps.
-        .background(Color(NSColor.windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color(NSColor.separatorColor), lineWidth: 1)
-                .allowsHitTesting(false)
-        )
-        .background(
-            GeometryReader { g in
-                Color.clear.preference(key: ContentHeightKey.self, value: g.size.height)
-            }
-        )
-        .onPreferenceChange(ContentHeightKey.self) { h in
-            Task { @MainActor in RewritePanel.shared.resizeTo(height: h) }
         }
     }
 
-    // MARK: Source
+    // MARK: Source toolbar (matches History's search toolbar)
 
-    private var sourceSection: some View {
-        ZStack(alignment: .topLeading) {
-            if vm.sourceText.isEmpty {
-                Text("Dictate or paste text to rewrite…")
-                    .foregroundColor(Color(NSColor.placeholderTextColor))
-                    .font(.body)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 10)
-                    .allowsHitTesting(false)
-            }
-            TextEditor(text: $vm.sourceText)
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 70, maxHeight: 120)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-        }
-        .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
-        .animation(.easeOut(duration: 0.25), value: vm.mode)
-    }
-
-    // MARK: Recent transcripts
-
-    private var recentsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("RECENT DICTATIONS")
-                .font(.system(size: 9, weight: .semibold))
+    private var sourceToolbar: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "mic.fill")
                 .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                .kerning(0.5)
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-
-            ForEach(vm.recentTranscripts.prefix(4)) { t in
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        vm.sourceText = t.text
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(Color(NSColor.quaternaryLabelColor))
-                        Text(t.text)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                            .foregroundColor(.primary)
-                        Spacer(minLength: 8)
-                        Text(relativeTime(t.createdAt))
-                            .font(.caption2)
-                            .foregroundColor(Color(NSColor.quaternaryLabelColor))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
-                    .background(Color.clear)
+                .font(.caption)
+                .padding(.top, 3)
+            ZStack(alignment: .topLeading) {
+                if vm.sourceText.isEmpty {
+                    Text("Dictate or paste text to rewrite…")
+                        .foregroundColor(Color(NSColor.placeholderTextColor))
+                        .font(.body)
+                        .allowsHitTesting(false)
+                        .padding(.top, 1)
                 }
-                .buttonStyle(.plain)
-                .background(
-                    Color(NSColor.selectedContentBackgroundColor).opacity(0.001) // make entire row tappable
-                )
+                TextEditor(text: $vm.sourceText)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 48, maxHeight: 100)
             }
+            .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: vm.mode)
         }
-        .padding(.bottom, 6)
-    }
-
-    private func relativeTime(_ date: Date) -> String {
-        let diff = Date().timeIntervalSince(date)
-        if diff < 60 { return "just now" }
-        if diff < 3600 { return "\(Int(diff / 60))m ago" }
-        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
-        return "\(Int(diff / 86400))d ago"
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor))
     }
 
     // MARK: Controls
@@ -326,10 +253,9 @@ struct RewriteView: View {
             .frame(width: 148)
             .labelsHidden()
 
-            // Explicit gap between the two pickers so they read as separate controls
-            Spacer().frame(width: 12)
-            Color(NSColor.separatorColor).frame(width: 0.5, height: 20)
-            Spacer().frame(width: 12)
+            Spacer().frame(width: 10)
+            Color(NSColor.separatorColor).frame(width: 0.5, height: 18)
+            Spacer().frame(width: 10)
 
             Picker("", selection: $vm.selectedStyleId) {
                 Text("Everyday").tag("everyday")
@@ -362,7 +288,7 @@ struct RewriteView: View {
     private var loadingRow: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("Rewriting…").foregroundColor(.secondary).font(.body)
+            Text("Rewriting…").foregroundColor(.secondary)
             Spacer()
         }
         .padding(.horizontal, 14)
@@ -380,31 +306,62 @@ struct RewriteView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .transition(.opacity)
     }
 
-    // MARK: Single result card
+    // MARK: Result row — matches History row style
 
-    private func resultCard(_ v: RewriteVariant) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(v.text)
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+    private func resultRow(_ v: RewriteVariant) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(v.text)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-            // AI linter warning
-            let lint = vm.linterResult
-            if !lint.isClean {
-                HStack(spacing: 5) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundColor(Color(red: 0.9, green: 0.7, blue: 0.0))
-                    Text("AI tells: \(lint.summary)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    // Metadata line
+                    HStack(spacing: 6) {
+                        if v.latencyMs > 0 {
+                            Text("\(v.latencyMs)ms")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        // AI linter warning
+                        let lint = vm.linterResult
+                        if !lint.isClean {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                                .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.0))
+                            Text(lint.summary)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                .transition(.opacity)
+
+                Spacer()
+
+                // Action icons — same style as History
+                HStack(spacing: 8) {
+                    Button { vm.copy(v.text) } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy")
+
+                    Button { vm.paste(v.text) } label: {
+                        Image(systemName: "arrow.up.doc.on.clipboard")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Paste to active app (⌘⇧↩)")
+                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+
+                    Button { vm.getVariants() } label: {
+                        Image(systemName: "square.on.square.dashed")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Get 3 variants")
+                }
             }
 
             // Diff toggle
@@ -412,8 +369,8 @@ struct RewriteView: View {
                 Button(vm.showDiff ? "Hide diff" : "What changed?") {
                     withAnimation(.easeOut(duration: 0.18)) { vm.showDiff.toggle() }
                 }
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundColor(.accentColor)
                 .buttonStyle(.plain)
 
                 if vm.showDiff {
@@ -423,100 +380,122 @@ struct RewriteView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
                         .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(6)
+                        .cornerRadius(5)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-
-            // Action row
-            HStack(spacing: 6) {
-                Button("Paste") { vm.paste(v.text) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .keyboardShortcut(.return, modifiers: [.command, .shift])
-                Button("Copy") { vm.copy(v.text) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                Spacer()
-
-                if v.latencyMs > 0 {
-                    Text("\(v.latencyMs)ms")
-                        .font(.caption2)
-                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                }
-
-                Button { vm.getVariants() } label: {
-                    Text("+ 3 variants")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color(NSColor.quaternaryLabelColor)))
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
-    // MARK: Variants
+    // MARK: Variants — same row style
 
     private var variantsSection: some View {
         VStack(spacing: 0) {
             ForEach(vm.variants) { v in
-                variantRow(v)
-                if v.index < 2 { Divider() }
+                HStack(alignment: .top) {
+                    Text("\(v.index + 1)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16)
+                        .padding(.top, 1)
+
+                    if v.isLoading {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Rewriting…").foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let err = v.error {
+                        Text(err).font(.caption).foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text(v.text)
+                            .font(.body)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .transition(.opacity)
+                    }
+
+                    if !v.isLoading && v.error == nil {
+                        HStack(spacing: 8) {
+                            Button { vm.copy(v.text) } label: { Image(systemName: "doc.on.doc") }
+                                .buttonStyle(.plain).help("Copy")
+                                .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: [.command, .option])
+                            Button { vm.paste(v.text) } label: { Image(systemName: "arrow.up.doc.on.clipboard") }
+                                .buttonStyle(.plain).help("Paste")
+                                .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: .command)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                if v.index < 2 { Divider().padding(.leading, 14) }
             }
         }
     }
 
-    @ViewBuilder
-    private func variantRow(_ v: RewriteVariant) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("\(v.index + 1)")
-                .font(.caption2.weight(.semibold))
+    // MARK: Recent dictations — List style matching History
+
+    private var recentsList: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Recent Dictations")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: { vm.loadRecents() }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
                 .foregroundColor(.secondary)
-                .frame(width: 14)
-                .padding(.top, 2)
-
-            if v.isLoading {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Rewriting…").foregroundColor(.secondary).font(.body)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 10)
-            } else if let err = v.error {
-                Text(err).font(.caption).foregroundColor(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 10)
-            } else {
-                Text(v.text)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 10)
-                    .transition(.opacity)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.controlBackgroundColor))
 
-            if !v.isLoading && v.error == nil {
-                VStack(spacing: 4) {
-                    Button("Paste") { vm.paste(v.text) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: .command)
-                    Button("Copy") { vm.copy(v.text) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+            Divider()
+
+            ForEach(vm.recentTranscripts.prefix(4)) { t in
+                Button {
+                    withAnimation(.easeOut(duration: 0.12)) { vm.sourceText = t.text }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "mic.fill")
+                            .font(.caption2)
+                            .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                            .frame(width: 12)
+                        Text(t.text)
+                            .font(.body)
+                            .lineLimit(1)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text(relativeTime(t.createdAt))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
                 }
-                .padding(.top, 6)
+                .buttonStyle(.plain)
+                if t.id != vm.recentTranscripts.prefix(4).last?.id {
+                    Divider().padding(.leading, 36)
+                }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let diff = Date().timeIntervalSince(date)
+        if diff < 60 { return "just now" }
+        if diff < 3600 { return "\(Int(diff / 60))m ago" }
+        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
+        return "\(Int(diff / 86400))d ago"
     }
 }
 
@@ -532,11 +511,7 @@ final class RewritePanel {
     private init() {}
 
     func show(prefill text: String? = nil) {
-        if let t = text {
-            vm.prefill(text: t)
-        } else {
-            vm.loadRecents()
-        }
+        if let t = text { vm.prefill(text: t) } else { vm.loadRecents() }
         if panel == nil { panel = buildPanel() }
         panel?.makeKeyAndOrderFront(nil)
         startOutsideClickMonitor()
@@ -547,47 +522,32 @@ final class RewritePanel {
         stopOutsideClickMonitor()
     }
 
-    // Called after auto-paste — closes panel without resetting source text
-    // so if the user reopens they can try a different style or variant.
     func closeForPaste() {
         panel?.orderOut(nil)
         stopOutsideClickMonitor()
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(.easeOut(duration: 0.12)) {
             vm.mode = .idle
             vm.primaryResult = nil
             vm.variants = []
         }
     }
 
-    func resizeTo(height: CGFloat) {
-        guard let p = panel else { return }
-        let clamped = max(140, min(680, ceil(height)))
-        guard abs(p.frame.size.height - clamped) > 1 else { return }
-        var frame = p.frame
-        let topY = frame.maxY
-        frame.size.height = clamped
-        frame.origin.y = topY - clamped
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.22
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            p.animator().setFrame(frame, display: true, animate: true)
-        }
-    }
-
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 160),
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
+            styleMask: [
+                .nonactivatingPanel,
+                .titled,          // visible title bar — matches History window style
+                .closable,
+                .resizable,
+            ],
             backing: .buffered,
             defer: false
         )
-        p.titleVisibility = .hidden
-        p.titlebarAppearsTransparent = true
-        // Transparent window background — SwiftUI view draws its own solid background
-        // with clean rounded corners via .clipShape(RoundedRectangle).
-        p.isOpaque = false
-        p.backgroundColor = .clear
-        p.isMovableByWindowBackground = true
+        p.title = "Wispr — Rewrite"
+        p.isOpaque = true
+        p.backgroundColor = NSColor.windowBackgroundColor
+        p.isMovableByWindowBackground = false
         p.isFloatingPanel = true
         p.level = .floating
         p.becomesKeyOnlyIfNeeded = true
@@ -596,18 +556,11 @@ final class RewritePanel {
         p.isReleasedWhenClosed = false
         p.animationBehavior = .utilityWindow
         p.hasShadow = true
-        p.contentMinSize = NSSize(width: 420, height: 140)
+        p.contentMinSize = NSSize(width: 420, height: 240)
         p.contentMaxSize = NSSize(width: 800, height: 720)
 
-        [p.standardWindowButton(.closeButton),
-         p.standardWindowButton(.miniaturizeButton),
-         p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
-
-        // Plain hosting view — no vibrancy, background handled by SwiftUI
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
         p.contentView = hosting
-
         p.setFrameAutosaveName("WisprRewritePanel")
         p.center()
         return p
