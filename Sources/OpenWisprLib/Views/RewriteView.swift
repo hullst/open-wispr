@@ -173,7 +173,13 @@ struct RewriteView: View {
                 variantsSection
             }
         }
-        .frame(width: 500)
+        .frame(width: 560)
+        .background(.clear)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        )
     }
 
     // MARK: Source
@@ -347,37 +353,115 @@ struct RewriteView: View {
 
 // MARK: - Panel controller
 
+private extension NSImage {
+    static func vibrancyMask(cornerRadius: CGFloat) -> NSImage {
+        let size = NSSize(width: cornerRadius * 2, height: cornerRadius * 2)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius,
+                                        bottom: cornerRadius, right: cornerRadius)
+        image.resizingMode = .stretch
+        return image
+    }
+}
+
 @MainActor
 final class RewritePanel {
     static let shared = RewritePanel()
     private var panel: NSPanel?
     let vm = RewriteViewModel()
+    private var outsideClickMonitor: Any?
 
     private init() {}
 
     func show(prefill text: String? = nil) {
         if let t = text { vm.prefill(text: t) }
-
-        if panel == nil {
-            let host = NSHostingController(rootView: RewriteView(vm: vm))
-            let p = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 500, height: 180),
-                styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-            p.title = "Wispr"
-            p.contentViewController = host
-            p.isFloatingPanel = true
-            p.level = .floating
-            p.center()
-            p.setFrameAutosaveName("WisprRewritePanel")
-            panel = p
-        }
-
+        if panel == nil { panel = buildPanel() }
         panel?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        startOutsideClickMonitor()
     }
 
-    func hide() { panel?.orderOut(nil) }
+    func hide() {
+        panel?.orderOut(nil)
+        stopOutsideClickMonitor()
+    }
+
+    private func buildPanel() -> NSPanel {
+        let p = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 200),
+            styleMask: [
+                .nonactivatingPanel,
+                .titled,
+                .fullSizeContentView,
+                .resizable,
+            ],
+            backing: .buffered,
+            defer: false
+        )
+
+        // Chrome
+        p.titleVisibility = .hidden
+        p.titlebarAppearsTransparent = true
+        p.isOpaque = false
+        p.backgroundColor = .clear
+
+        // Behavior
+        p.isMovableByWindowBackground = true
+        p.isFloatingPanel = true
+        p.level = .floating
+        p.becomesKeyOnlyIfNeeded = true
+        p.hidesOnDeactivate = false
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.isReleasedWhenClosed = false
+        p.animationBehavior = .utilityWindow
+        p.hasShadow = true
+        p.contentMinSize = NSSize(width: 400, height: 160)
+        p.contentMaxSize = NSSize(width: 800, height: 700)
+
+        // Hide traffic lights
+        [p.standardWindowButton(.closeButton),
+         p.standardWindowButton(.miniaturizeButton),
+         p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
+
+        // Vibrancy backing
+        let vibrancy = NSVisualEffectView()
+        vibrancy.blendingMode = .behindWindow
+        vibrancy.state = .active
+        vibrancy.material = .sidebar
+        vibrancy.maskImage = .vibrancyMask(cornerRadius: 16)
+
+        // SwiftUI content on top of vibrancy
+        let hosting = NSHostingView(rootView: RewriteView(vm: vm))
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        vibrancy.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.topAnchor.constraint(equalTo: vibrancy.topAnchor),
+            hosting.leadingAnchor.constraint(equalTo: vibrancy.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: vibrancy.trailingAnchor),
+            hosting.bottomAnchor.constraint(equalTo: vibrancy.bottomAnchor),
+        ])
+
+        p.contentView = vibrancy
+        p.setFrameAutosaveName("WisprRewritePanel")
+        p.center()
+        return p
+    }
+
+    private func startOutsideClickMonitor() {
+        stopOutsideClickMonitor()
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            // Only dismiss when idle or showing a result — not while actively rewriting.
+            guard let self, let p = self.panel, p.isVisible else { return }
+            let vm = self.vm
+            if vm.mode == .idle { self.hide() }
+        }
+    }
+
+    private func stopOutsideClickMonitor() {
+        if let m = outsideClickMonitor { NSEvent.removeMonitor(m); outsideClickMonitor = nil }
+    }
 }
