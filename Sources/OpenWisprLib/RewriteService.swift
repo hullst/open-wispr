@@ -21,6 +21,8 @@ final class RewriteService {
         text: String,
         providerId: String? = nil,
         styleId: String? = nil,
+        lengthId: String = "same",
+        variantIndex: Int = 0,
         transcriptId: Int64? = nil
     ) async throws -> RewriteResult {
         let id = providerId ?? WisprDefaults.shared.defaultProviderId
@@ -29,9 +31,9 @@ final class RewriteService {
         }
 
         let style = styleId ?? WisprDefaults.shared.defaultStyleId
-        let systemPrompt = StylePresets.buildPrompt(styleId: style)
+        let systemPrompt = StylePresets.buildPrompt(styleId: style, lengthId: lengthId, variantIndex: variantIndex)
 
-        let result = try await provider.rewrite(text: text, systemPrompt: systemPrompt, maxTokens: 1024)
+        let result = try await provider.rewrite(text: text, systemPrompt: systemPrompt, maxTokens: 1024, temperature: 0.5)
 
         PersistenceContainer.shared.logRewrite(
             transcriptId: transcriptId,

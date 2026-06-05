@@ -10,7 +10,7 @@ protocol RewriteProvider {
     var id: String { get }
     var displayName: String { get }
     var isConfigured: Bool { get }
-    func rewrite(text: String, systemPrompt: String, maxTokens: Int) async throws -> RewriteResult
+    func rewrite(text: String, systemPrompt: String, maxTokens: Int, temperature: Double) async throws -> RewriteResult
 }
 
 enum RewriteError: LocalizedError {

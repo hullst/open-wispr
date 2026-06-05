@@ -124,8 +124,25 @@ Style: Company-wide (customer-facing, org announcement, all-hands, exec/skip-lev
         all.first { $0.id == id }
     }
 
-    static func buildPrompt(styleId: String) -> String {
+    // Length modifiers — ported from VP Rewriter's LENGTH_PROMPTS.
+    static let lengthPrompts: [String: String] = [
+        "same":    "",
+        "shorten": "\n\nLength: SHORTEN — compress to essentials, cut anything redundant. Much shorter than the original.",
+        "expand":  "\n\nLength: EXPAND — add appropriate context and structure. Slightly longer than the original, but no fluff.",
+    ]
+
+    // Variant hints appended to prompt index 1 and 2 so parallel runs return
+    // genuinely different phrasings rather than identical outputs.
+    static let variantHints: [String] = [
+        "",
+        "\n\nVariant: Use a different sentence structure for the opening.",
+        "\n\nVariant: Find an alternative way to phrase the main point.",
+    ]
+
+    static func buildPrompt(styleId: String, lengthId: String = "same", variantIndex: Int = 0) -> String {
         let suffix = preset(id: styleId)?.systemPromptSuffix ?? everydaySuffix
-        return basePrompt + suffix
+        let length = lengthPrompts[lengthId] ?? ""
+        let variant = variantIndex < variantHints.count ? variantHints[variantIndex] : ""
+        return basePrompt + suffix + length + variant
     }
 }

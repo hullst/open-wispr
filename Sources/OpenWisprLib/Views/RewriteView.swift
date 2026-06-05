@@ -1,6 +1,17 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Data types
+
+struct RewriteVariant: Identifiable {
+    let id = UUID()
+    let index: Int
+    var text: String = ""
+    var latencyMs: Int = 0
+    var error: String? = nil
+    var isLoading: Bool = true
+}
+
 // MARK: - View Model
 
 @MainActor
@@ -8,14 +19,16 @@ final class RewriteViewModel: ObservableObject {
     @Published var sourceText: String = ""
     @Published var selectedProviderId: String
     @Published var selectedStyleId: String
-    @Published var resultText: String = ""
+    @Published var selectedLengthId: String = "same"
+    @Published var variants: [RewriteVariant] = []
     @Published var isRewriting = false
     @Published var errorMessage: String?
-    @Published var latencyMs: Int?
 
     var configuredProviders: [(id: String, name: String)] {
         RewriteService.shared.configuredProviders.map { ($0.id, $0.displayName) }
     }
+
+    private var activeTasks: [Task<Void, Never>] = []
 
     init() {
         selectedProviderId = WisprDefaults.shared.defaultProviderId
@@ -24,168 +37,244 @@ final class RewriteViewModel: ObservableObject {
 
     func prefill(text: String) {
         sourceText = text
-        resultText = ""
+        cancel()
+    }
+
+    func cancel() {
+        activeTasks.forEach { $0.cancel() }
+        activeTasks = []
+        variants = []
+        isRewriting = false
         errorMessage = nil
-        latencyMs = nil
     }
 
     func runRewrite() {
-        guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        cancel()
+
         isRewriting = true
         errorMessage = nil
-        resultText = ""
 
-        let text = sourceText
+        // Seed 3 loading placeholders so cards appear immediately.
+        variants = [
+            RewriteVariant(index: 0),
+            RewriteVariant(index: 1),
+            RewriteVariant(index: 2),
+        ]
+
         let providerId = selectedProviderId
         let styleId = selectedStyleId
+        let lengthId = selectedLengthId
         let transcriptId = PersistenceContainer.shared.mostRecentTranscript()?.id
 
-        Task {
-            do {
-                let result = try await RewriteService.shared.rewrite(
-                    text: text,
-                    providerId: providerId,
-                    styleId: styleId,
-                    transcriptId: transcriptId
-                )
-                await MainActor.run {
-                    self.resultText = result.text
-                    self.latencyMs = result.latencyMs
-                    self.isRewriting = false
-                    if WisprDefaults.shared.autoPasteRewrites {
-                        self.pasteResult()
+        for i in 0..<3 {
+            let task = Task { [weak self] in
+                do {
+                    let result = try await RewriteService.shared.rewrite(
+                        text: text,
+                        providerId: providerId,
+                        styleId: styleId,
+                        lengthId: lengthId,
+                        variantIndex: i,
+                        transcriptId: transcriptId
+                    )
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard let self else { return }
+                        self.variants[i].text = result.text
+                        self.variants[i].latencyMs = result.latencyMs
+                        self.variants[i].isLoading = false
+                        self.checkDone()
+                    }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard let self else { return }
+                        self.variants[i].error = error.localizedDescription
+                        self.variants[i].isLoading = false
+                        self.checkDone()
                     }
                 }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isRewriting = false
-                }
             }
+            activeTasks.append(task)
         }
     }
 
-    func copyResult() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(resultText, forType: .string)
+    private func checkDone() {
+        if variants.allSatisfy({ !$0.isLoading }) {
+            isRewriting = false
+        }
     }
 
-    func pasteResult() {
-        guard !resultText.isEmpty else { return }
+    func paste(_ text: String) {
+        cancel()
         NSApp.hide(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let inserter = TextInserter()
-            inserter.insert(text: self.resultText)
+            TextInserter().insert(text: text)
         }
+    }
+
+    func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 
-// MARK: - SwiftUI View
+// MARK: - Main view
 
 struct RewriteView: View {
     @ObservedObject var vm: RewriteViewModel
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Rewrite")
-                    .font(.headline)
-                Spacer()
-                if let ms = vm.latencyMs {
-                    Text("\(ms)ms")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
+            sourceSection
             Divider()
-
-            // Source text
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Original", systemImage: "text.quote")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                TextEditor(text: $vm.sourceText)
-                    .font(.body)
-                    .frame(minHeight: 80, maxHeight: 150)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-
-            // Pickers row
-            HStack(spacing: 8) {
-                Picker("Model", selection: $vm.selectedProviderId) {
-                    ForEach(vm.configuredProviders, id: \.id) { p in
-                        Text(p.name).tag(p.id)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 160)
-
-                Picker("Style", selection: $vm.selectedStyleId) {
-                    ForEach(StylePresets.all, id: \.id) { s in
-                        Text(s.displayName).tag(s.id)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 140)
-
-                Spacer()
-
-                Button(action: { vm.runRewrite() }) {
-                    if vm.isRewriting {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Rewrite")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(vm.isRewriting || vm.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .keyboardShortcut(.return, modifiers: .command)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            // Result
-            if !vm.resultText.isEmpty || vm.errorMessage != nil {
+            controlsRow
+            if !vm.variants.isEmpty {
                 Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    if let err = vm.errorMessage {
-                        Label(err, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    } else {
-                        Label("Result", systemImage: "checkmark.circle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        ScrollView {
-                            Text(vm.resultText)
-                                .font(.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                        }
-                        .frame(minHeight: 60, maxHeight: 200)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(NSColor.separatorColor), lineWidth: 1))
-
-                        HStack {
-                            Button("Copy") { vm.copyResult() }
-                                .buttonStyle(.bordered)
-                            Button("Paste to App") { vm.pasteResult() }
-                                .buttonStyle(.borderedProminent)
-                            Spacer()
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                variantsSection
             }
         }
-        .frame(width: 480)
+        .frame(width: 520)
+    }
+
+    // MARK: Source
+
+    private var sourceSection: some View {
+        ZStack(alignment: .topLeading) {
+            if vm.sourceText.isEmpty {
+                Text("Paste or dictate text to rewrite…")
+                    .foregroundColor(Color(NSColor.placeholderTextColor))
+                    .font(.body)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+                    .allowsHitTesting(false)
+            }
+            TextEditor(text: $vm.sourceText)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 70, maxHeight: 110)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+        }
+        .background(Color(NSColor.textBackgroundColor))
+    }
+
+    // MARK: Controls
+
+    private var controlsRow: some View {
+        HStack(spacing: 8) {
+            // Length
+            Picker("", selection: $vm.selectedLengthId) {
+                Text("Shorter").tag("shorten")
+                Text("Same").tag("same")
+                Text("Longer").tag("expand")
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 176)
+            .labelsHidden()
+
+            // Style
+            Picker("", selection: $vm.selectedStyleId) {
+                Text("Everyday").tag("everyday")
+                Text("Chat").tag("chat")
+                Text("Co-wide").tag("companywide")
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 176)
+            .labelsHidden()
+
+            Spacer()
+
+            if vm.isRewriting {
+                Button("Cancel") { vm.cancel() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            } else {
+                Button(action: vm.runRewrite) {
+                    Text("Rewrite")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(vm.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .keyboardShortcut(.return, modifiers: .command)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: Variants
+
+    private var variantsSection: some View {
+        VStack(spacing: 0) {
+            ForEach(vm.variants) { variant in
+                variantCard(variant)
+                if variant.index < 2 {
+                    Divider()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func variantCard(_ v: RewriteVariant) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Index badge
+            Text("\(v.index + 1)")
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.secondary)
+                .frame(width: 16, alignment: .center)
+                .padding(.top, 3)
+
+            // Content
+            if v.isLoading {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Rewriting…")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+            } else if let err = v.error {
+                Text(err)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 10)
+            } else {
+                Text(v.text)
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 10)
+            }
+
+            // Actions
+            if !v.isLoading && v.error == nil {
+                VStack(spacing: 4) {
+                    Button("Paste") { vm.paste(v.text) }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: .command)
+                    Button("Copy") { vm.copy(v.text) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                .padding(.top, 6)
+
+                if v.latencyMs > 0 {
+                    Text("\(v.latencyMs)ms")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 12)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(v.index % 2 == 0 ? Color.clear : Color(NSColor.controlBackgroundColor).opacity(0.4))
     }
 }
 
@@ -195,7 +284,7 @@ struct RewriteView: View {
 final class RewritePanel {
     static let shared = RewritePanel()
     private var panel: NSPanel?
-    private let vm = RewriteViewModel()
+    let vm = RewriteViewModel()
 
     private init() {}
 
@@ -203,15 +292,14 @@ final class RewritePanel {
         if let t = text { vm.prefill(text: t) }
 
         if panel == nil {
-            let view = RewriteView(vm: vm)
-            let host = NSHostingController(rootView: view)
+            let host = NSHostingController(rootView: RewriteView(vm: vm))
             let p = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 200),
                 styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
             )
-            p.title = "Wispr — Rewrite"
+            p.title = "Wispr"
             p.contentViewController = host
             p.isFloatingPanel = true
             p.level = .floating

@@ -351,6 +351,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                         self.lastTranscription = polished
                         PersistenceContainer.shared.insertTranscript(text: polished, source: "dictation")
                         self.inserter.insert(text: polished)
+                        // If the rewrite panel is open, push the new dictation in
+                        // so the user can immediately rewrite what they just said.
+                        RewritePanel.shared.vm.prefill(text: polished)
                     }
                     // Only hide the pill if the user hasn't already started a new
                     // recording — otherwise we'd close the pill mid-dictation.

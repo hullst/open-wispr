@@ -10,7 +10,7 @@ final class AnthropicProvider: RewriteProvider {
         KeychainService.shared.getKey(provider: "anthropic") != nil
     }
 
-    func rewrite(text: String, systemPrompt: String, maxTokens: Int) async throws -> RewriteResult {
+    func rewrite(text: String, systemPrompt: String, maxTokens: Int, temperature: Double = 0.5) async throws -> RewriteResult {
         guard let apiKey = KeychainService.shared.getKey(provider: "anthropic") else {
             throw RewriteError.notConfigured("Claude")
         }
@@ -26,6 +26,7 @@ final class AnthropicProvider: RewriteProvider {
         let body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
+            "temperature": temperature,
             "system": systemPrompt,
             "messages": [["role": "user", "content": text]],
         ]

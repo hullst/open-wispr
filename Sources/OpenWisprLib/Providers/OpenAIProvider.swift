@@ -13,7 +13,7 @@ final class OpenAIProvider: RewriteProvider {
         KeychainService.shared.getKey(provider: "openai") != nil
     }
 
-    func rewrite(text: String, systemPrompt: String, maxTokens: Int) async throws -> RewriteResult {
+    func rewrite(text: String, systemPrompt: String, maxTokens: Int, temperature: Double = 0.5) async throws -> RewriteResult {
         guard let apiKey = KeychainService.shared.getKey(provider: "openai") else {
             throw RewriteError.notConfigured("OpenAI")
         }
@@ -28,6 +28,7 @@ final class OpenAIProvider: RewriteProvider {
         let body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
+            "temperature": temperature,
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": text],
