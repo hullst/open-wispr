@@ -2,7 +2,7 @@
 
 All notable changes to Wispr are documented here.
 
-## [Unreleased] — feature/merge-rewriter
+## [2.0.0] — Unreleased (feature/merge-rewriter)
 
 ### Added
 - SwiftData persistence layer: `Transcript` and `Rewrite` models
@@ -21,10 +21,15 @@ All notable changes to Wispr are documented here.
 ### Changed
 - App renamed from **OpenWispr** to **Wispr** — single bundle, no Electron, no Node
 - Bundle ID: `com.hull.wispr`
-- Package.swift: minimum platform bumped from macOS 13 → macOS 14 (required for SwiftData)
+- Package.swift: minimum platform bumped from macOS 13 → macOS 14
 - Package.swift: renamed targets from `open-wispr`/`OpenWisprLib` to `wispr`/`WisprLib`
-- Added `KeyboardShortcuts` (sindresorhus) SPM dependency
+- Persistence: GRDB (not SwiftData) — SwiftData's `@Model` macro requires Xcode's build plugin and won't compile with `swift build` CLI. GRDB is pure Swift, no macros, parallels VP Rewriter's SQLite approach. Database at `~/Library/Application Support/Wispr/wispr.sqlite`.
+- Silent rewrite hotkey: native `NSEvent` monitor (not `KeyboardShortcuts` SPM) — same reason (`#Preview` macros in KeyboardShortcuts require Xcode plugin). Stored in UserDefaults.
+- REBUILD script updated: binary `wispr`, bundle `Wispr.app`, codesign id `com.hull.wispr`
 - VP Rewriter (Electron) retired as a standalone app; prompts/style logic ported to Swift
+
+### Notes
+- Unit tests (StylePresets, Keychain, providers) are written and correct. Running `swift test` fails on CommandLineTools SDK (XCTest not bundled). Use Xcode to run the test suite.
 
 ### Merged from feature/live-waveform-pill-polish
 - Real RMS-energy waveform in menu bar (fast attack, slow release)

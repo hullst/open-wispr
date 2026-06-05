@@ -24,9 +24,11 @@ class StatusBarController: NSObject {
         case idle
         case recording
         case transcribing
+        case rewriting
         case downloading
         case waitingForPermission
         case copiedToClipboard
+        case needsAttention(String)
         case error(String)
     }
 
@@ -104,9 +106,11 @@ class StatusBarController: NSObject {
             case .idle: stateLabel = "Ready"
             case .recording: stateLabel = "Recording..."
             case .transcribing: stateLabel = "Transcribing..."
+            case .rewriting: stateLabel = "Rewriting..."
             case .downloading: stateLabel = "Downloading model..."
             case .waitingForPermission: stateLabel = "Waiting for Accessibility permission..."
             case .copiedToClipboard: stateLabel = "Copied to clipboard"
+            case .needsAttention(let msg): stateLabel = "⚠ \(msg)"
             case .error(let message): stateLabel = "Error: \(message)"
             }
         }
@@ -319,6 +323,30 @@ class StatusBarController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
+        let rewriteTarget = MenuItemTarget {
+            let last = PersistenceContainer.shared.mostRecentTranscript()?.text
+            Task { @MainActor in RewritePanel.shared.show(prefill: last) }
+        }
+        menuItemTargets.append(rewriteTarget)
+        let rewriteItem = NSMenuItem(title: "Rewrite Last Transcript", action: #selector(MenuItemTarget.invoke), keyEquivalent: "w")
+        rewriteItem.target = rewriteTarget
+        rewriteItem.isEnabled = PersistenceContainer.shared.mostRecentTranscript() != nil
+        menu.addItem(rewriteItem)
+
+        let historyTarget = MenuItemTarget { Task { @MainActor in HistoryWindowController.shared.show() } }
+        menuItemTargets.append(historyTarget)
+        let historyItem = NSMenuItem(title: "Open History", action: #selector(MenuItemTarget.invoke), keyEquivalent: "h")
+        historyItem.target = historyTarget
+        menu.addItem(historyItem)
+
+        let prefsTarget = MenuItemTarget { Task { @MainActor in PreferencesWindowController.shared.show() } }
+        menuItemTargets.append(prefsTarget)
+        let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(MenuItemTarget.invoke), keyEquivalent: ",")
+        prefsItem.target = prefsTarget
+        menu.addItem(prefsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let reloadItem = NSMenuItem(title: "Reload Configuration", action: #selector(reloadConfiguration), keyEquivalent: "r")
         reloadItem.target = self
         menu.addItem(reloadItem)
@@ -357,12 +385,16 @@ class StatusBarController: NSObject {
             startRecordingAnimation()
         case .transcribing:
             startTranscribingAnimation()
+        case .rewriting:
+            startTranscribingAnimation()
         case .downloading:
             startDownloadingAnimation()
         case .waitingForPermission:
             setIcon(StatusBarController.drawLockIcon())
         case .copiedToClipboard:
             setIcon(StatusBarController.drawCheckmarkIcon())
+        case .needsAttention:
+            setIcon(StatusBarController.drawWarningIcon())
         case .error:
             setIcon(StatusBarController.drawWarningIcon())
         }

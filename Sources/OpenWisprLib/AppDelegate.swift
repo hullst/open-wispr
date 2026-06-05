@@ -18,8 +18,39 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         pill = PillOverlay()
         recorder = AudioRecorder()
 
+        // Start the silent-rewrite hotkey listener.
+        RewriteHotkeyManager.shared.start { [weak self] in
+            self?.handleSilentRewrite()
+        }
+
+        // Probe Ollama for available models in the background.
+        Task { await RewriteService.shared.probe() }
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.setup()
+        }
+    }
+
+    private func handleSilentRewrite() {
+        guard let text = PersistenceContainer.shared.mostRecentTranscript()?.text else { return }
+        statusBar.state = .rewriting
+        Task {
+            do {
+                let result = try await RewriteService.shared.rewrite(text: text)
+                await MainActor.run {
+                    let inserter = TextInserter()
+                    inserter.insert(text: result.text)
+                    self.statusBar.state = .idle
+                    self.statusBar.buildMenu()
+                }
+            } catch {
+                await MainActor.run {
+                    self.statusBar.state = .needsAttention(error.localizedDescription)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        self.statusBar.state = .idle
+                    }
+                }
+            }
         }
     }
 

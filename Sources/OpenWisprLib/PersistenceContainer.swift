@@ -83,6 +83,14 @@ final class PersistenceContainer {
         try? db.write { db in try r.insert(db) }
     }
 
+    func deleteTranscript(_ transcript: Transcript) {
+        guard let id = transcript.id else { return }
+        try? db.write { db in
+            try db.execute(sql: "DELETE FROM rewrites WHERE transcriptId = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM transcripts WHERE id = ?", arguments: [id])
+        }
+    }
+
     func allTranscripts(limit: Int = 200) -> [Transcript] {
         (try? db.read { db in
             try Transcript.order(Column("createdAt").desc).limit(limit).fetchAll(db)
