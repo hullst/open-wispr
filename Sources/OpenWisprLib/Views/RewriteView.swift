@@ -625,16 +625,14 @@ final class RewritePanel {
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
+            styleMask: [.nonactivatingPanel, .titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         p.title = "Wispr — Rewrite"
-        p.titleVisibility = .hidden
-        p.titlebarAppearsTransparent = true
         p.isOpaque = true
         p.backgroundColor = NSColor.windowBackgroundColor
-        p.isMovableByWindowBackground = true
+        p.isMovableByWindowBackground = false  // drag by title bar, not background
         p.isFloatingPanel = true
         p.level = .floating
         p.becomesKeyOnlyIfNeeded = true
@@ -645,10 +643,6 @@ final class RewritePanel {
         p.hasShadow = true
         p.contentMinSize = NSSize(width: 500, height: 260)
         p.contentMaxSize = NSSize(width: 900, height: 800)
-
-        [p.standardWindowButton(.closeButton),
-         p.standardWindowButton(.miniaturizeButton),
-         p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
 
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         p.contentView = hosting
