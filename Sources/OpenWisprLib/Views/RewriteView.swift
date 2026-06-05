@@ -11,6 +11,11 @@ struct RewriteVariant: Identifiable {
     var latencyMs: Int = 0
     var error: String? = nil
     var isLoading: Bool = true
+
+    // Tag labels matching the temperature ramp
+    var tagLabel: String {
+        ["Conservative", "Balanced", "Expressive"][min(index, 2)]
+    }
 }
 
 enum RewriteMode { case idle, rewriting, result, variants }
@@ -29,6 +34,7 @@ final class RewriteViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showDiff: Bool = false
     @Published var recentTranscripts: [Transcript] = []
+    @Published var selectedVariantIndex: Int? = nil
 
     var linterResult: LinterResult {
         guard let v = primaryResult, !v.text.isEmpty else { return LinterResult(violations: []) }
@@ -60,20 +66,19 @@ final class RewriteViewModel: ObservableObject {
     func cancel() {
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
+        errorMessage = nil
         withAnimation(.easeOut(duration: 0.18)) {
             mode = .idle
             primaryResult = nil
             variants = []
             showDiff = false
+            selectedVariantIndex = nil
         }
-        errorMessage = nil
     }
 
     func rewrite() {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        // Cancel tasks without touching mode — avoids the brief .idle flash
-        // that could trigger the outside-click monitor during the transition.
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
         errorMessage = nil
@@ -82,6 +87,7 @@ final class RewriteViewModel: ObservableObject {
             primaryResult = nil
             variants = []
             showDiff = false
+            selectedVariantIndex = nil
         }
 
         let source = text
@@ -129,8 +135,9 @@ final class RewriteViewModel: ObservableObject {
         activeTasks = []
 
         let source = text
-        withAnimation {
+        withAnimation(.easeOut(duration: 0.15)) {
             mode = .variants
+            selectedVariantIndex = nil
             variants = [RewriteVariant(index: 0), RewriteVariant(index: 1), RewriteVariant(index: 2)]
         }
 
@@ -170,8 +177,6 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func paste(_ text: String) {
-        // Just insert — panel stays visible so the user can see what was pasted.
-        // The outside-click monitor will close it when they click elsewhere.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             TextInserter().insert(text: text)
         }
@@ -190,8 +195,7 @@ struct RewriteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Source input — same toolbar style as History search bar
-            sourceToolbar
+            inputSection
             Divider()
             controlsRow
 
@@ -205,14 +209,13 @@ struct RewriteView: View {
             }
             if vm.mode == .result, let v = vm.primaryResult, !v.isLoading {
                 Divider()
-                resultRow(v)
+                outputSection(v)
             }
             if vm.mode == .variants {
                 Divider()
                 variantsSection
             }
 
-            // Recent dictations — same list style as History window
             if !vm.recentTranscripts.isEmpty {
                 Divider()
                 recentsList
@@ -220,32 +223,46 @@ struct RewriteView: View {
         }
     }
 
-    // MARK: Source toolbar (matches History's search toolbar)
+    // MARK: Input section
 
-    private var sourceToolbar: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "mic.fill")
-                .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                .font(.caption)
-                .padding(.top, 3)
+    private var inputSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            // "INPUT" label + char count
+            HStack {
+                Text("Input")
+                    .font(Type.label)
+                    .textCase(.uppercase)
+                    .tracking(0.9)
+                    .foregroundColor(Theme.text3)
+                Spacer()
+                if !vm.sourceText.isEmpty {
+                    Text("\(vm.sourceText.count)")
+                        .font(Type.mono)
+                        .foregroundColor(Theme.text3)
+                }
+            }
+
+            // Text area
             ZStack(alignment: .topLeading) {
                 if vm.sourceText.isEmpty {
-                    Text("Dictate or paste text to rewrite…")
-                        .foregroundColor(Color(NSColor.placeholderTextColor))
-                        .font(.body)
+                    Text("Paste or dictate text to rewrite…")
+                        .font(Type.body)
+                        .foregroundColor(Theme.text3)
                         .allowsHitTesting(false)
                         .padding(.top, 1)
                 }
                 TextEditor(text: $vm.sourceText)
-                    .font(.body)
+                    .font(Type.body)
+                    .foregroundColor(Theme.text)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 60, maxHeight: 140)
             }
             .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
             .animation(.easeOut(duration: 0.2), value: vm.mode)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
         .background(Color(NSColor.controlBackgroundColor))
     }
 
@@ -281,14 +298,17 @@ struct RewriteView: View {
                 Button("Cancel") { vm.cancel() }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .font(Type.control)
             } else {
                 Button("Rewrite") { vm.rewrite() }
                     .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
                     .disabled(vm.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .keyboardShortcut(.return, modifiers: .command)
+                    .font(Type.control)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
@@ -296,171 +316,244 @@ struct RewriteView: View {
 
     private var loadingRow: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
-            Text("Rewriting…").foregroundColor(.secondary)
+            ProgressView().controlSize(.small).tint(Theme.accent)
+            Text("Rewriting…")
+                .font(Type.body)
+                .foregroundColor(Theme.text2)
             Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
         .transition(.opacity)
     }
 
     // MARK: Error
 
     private func errorRow(_ msg: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle").foregroundColor(.red).font(.caption)
-            Text(msg).font(.caption).foregroundColor(.red)
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(Theme.recording)
+                .frame(width: 3)
+            Text(msg)
+                .font(Type.body)
+                .foregroundColor(Theme.text)
             Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .background(Theme.panel)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 10)
     }
 
-    // MARK: Result row — matches History row style
+    // MARK: Output section — accentSoft background when filled
 
-    private func resultRow(_ v: RewriteVariant) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(v.text)
-                        .font(.body)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+    private func outputSection(_ v: RewriteVariant) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            // "OUTPUT" label + latency
+            HStack {
+                Text("Output")
+                    .font(Type.label)
+                    .textCase(.uppercase)
+                    .tracking(0.9)
+                    .foregroundColor(Theme.text3)
+                Spacer()
+                if v.latencyMs > 0 {
+                    Text("\(String(format: "%.1f", Double(v.latencyMs) / 1000))s")
+                        .font(Type.mono)
+                        .foregroundColor(Theme.text3)
+                }
+            }
 
-                    // Metadata line
+            // Result text box with accentSoft background
+            VStack(alignment: .leading, spacing: 10) {
+                Text(v.text)
+                    .font(Type.output)
+                    .lineSpacing(6)
+                    .foregroundColor(Theme.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // AI linter warning
+                let lint = vm.linterResult
+                if !lint.isClean {
                     HStack(spacing: 6) {
-                        if v.latencyMs > 0 {
-                            Text("\(v.latencyMs)ms")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        // AI linter warning
-                        let lint = vm.linterResult
-                        if !lint.isClean {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption2)
-                                .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.0))
-                            Text(lint.summary)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(Color(hex: 0xFF9500))
+                        Text("AI tells: \(lint.summary)")
+                            .font(Type.mono)
+                            .foregroundColor(Theme.text2)
                     }
                 }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accentSoft)
+            .overlay(
+                RoundedRectangle(cornerRadius: Radii.card)
+                    .strokeBorder(Theme.accentLine, lineWidth: 0.5)
+            )
+            .cornerRadius(Radii.card)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+            // Action row
+            HStack(spacing: 8) {
+                Button("Copy") { vm.copy(v.text) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .font(Type.control)
+
+                Button("Paste") { vm.paste(v.text) }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+                    .controlSize(.small)
+                    .font(Type.control)
+                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+                    .help("⌘⇧↩")
+
+                Button("Variants") { vm.getVariants() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .font(Type.control)
 
                 Spacer()
 
-                // Action buttons
-                HStack(spacing: 6) {
-                    Button("Copy") { vm.copy(v.text) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
-                    Button("Paste") { vm.paste(v.text) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .keyboardShortcut(.return, modifiers: [.command, .shift])
-                        .help("⌘⇧↩")
-
-                    Button("Variants") { vm.getVariants() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                // Diff toggle
+                if !v.sourceText.isEmpty {
+                    Button(vm.showDiff ? "Hide diff" : "What changed?") {
+                        withAnimation(.easeOut(duration: 0.18)) { vm.showDiff.toggle() }
+                    }
+                    .font(Type.mono)
+                    .foregroundColor(Theme.accent)
+                    .buttonStyle(.plain)
                 }
             }
 
-            // Diff toggle
-            if !v.sourceText.isEmpty {
-                Button(vm.showDiff ? "Hide diff" : "What changed?") {
-                    withAnimation(.easeOut(duration: 0.18)) { vm.showDiff.toggle() }
-                }
-                .font(.caption)
-                .foregroundColor(.accentColor)
-                .buttonStyle(.plain)
-
-                if vm.showDiff {
-                    let tokens = WordDiff.diff(original: v.sourceText, rewritten: v.text)
-                    Text(WordDiff.attributedString(from: tokens))
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(5)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
+            // Diff view
+            if vm.showDiff, !v.sourceText.isEmpty {
+                let tokens = WordDiff.diff(original: v.sourceText, rewritten: v.text)
+                Text(WordDiff.attributedString(from: tokens))
+                    .font(Type.mono)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(Theme.panel)
+                    .overlay(RoundedRectangle(cornerRadius: Radii.control)
+                        .strokeBorder(Theme.border, lineWidth: 0.5))
+                    .cornerRadius(Radii.control)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 16)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
-    // MARK: Variants — same row style
+    // MARK: Variants — 3-column grid of styled cards
 
     private var variantsSection: some View {
-        VStack(spacing: 0) {
-            ForEach(vm.variants) { v in
-                HStack(alignment: .top) {
-                    Text("\(v.index + 1)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 16)
-                        .padding(.top, 1)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("Variants")
+                    .font(Type.label)
+                    .textCase(.uppercase)
+                    .tracking(0.9)
+                    .foregroundColor(Theme.text3)
+                Spacer()
+                Button("Close") { vm.cancel() }
+                    .font(.system(size: 12.5))
+                    .foregroundColor(Theme.text2)
+                    .buttonStyle(.plain)
+            }
 
-                    if v.isLoading {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Rewriting…").foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let err = v.error {
-                        Text(err).font(.caption).foregroundColor(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Text(v.text)
-                            .font(.body)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .transition(.opacity)
-                    }
-
-                    if !v.isLoading && v.error == nil {
-                        VStack(spacing: 4) {
-                            Button("Paste") { vm.paste(v.text) }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                                .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: .command)
-                            Button("Copy") { vm.copy(v.text) }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                        }
-                    }
+            HStack(spacing: 10) {
+                ForEach(vm.variants) { v in
+                    variantCard(v)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                if v.index < 2 { Divider().padding(.leading, 14) }
             }
         }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 16)
     }
 
-    // MARK: Recent dictations — List style matching History
+    @ViewBuilder
+    private func variantCard(_ v: RewriteVariant) -> some View {
+        let isSelected = vm.selectedVariantIndex == v.index
+        let filled = !v.isLoading && v.error == nil && !v.text.isEmpty
+
+        Button {
+            if filled {
+                vm.selectedVariantIndex = v.index
+                vm.paste(v.text)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                // Tag label
+                Text(v.tagLabel)
+                    .font(Type.badge)
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                    .foregroundColor(isSelected ? Theme.accent : Theme.text3)
+
+                // Body
+                Group {
+                    if v.isLoading {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text("Generating…")
+                                .font(.system(size: 13))
+                                .italic()
+                                .foregroundColor(Theme.text3)
+                        }
+                    } else if let err = v.error {
+                        Text(err).font(.system(size: 12)).foregroundColor(Theme.recording)
+                    } else {
+                        Text(v.text)
+                            .font(.system(size: 13, weight: .regular))
+                            .lineSpacing(4)
+                            .foregroundColor(Theme.text)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                // Footer
+                if filled {
+                    Text(isSelected ? "✓ Applied" : "Click to use")
+                        .font(.system(size: 11))
+                        .foregroundColor(isSelected ? Theme.accent : Theme.text3)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
+            .background(isSelected ? Theme.accentSoft : Theme.panelSoft)
+            .overlay(
+                RoundedRectangle(cornerRadius: 11)
+                    .strokeBorder(isSelected ? Theme.accent : Theme.border,
+                                  lineWidth: isSelected ? 1.5 : 0.5)
+            )
+            .cornerRadius(11)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Recent dictations
 
     private var recentsList: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Recent Dictations")
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
+                    .font(Type.label)
+                    .textCase(.uppercase)
+                    .tracking(0.9)
+                    .foregroundColor(Theme.text3)
                 Spacer()
                 Button(action: { vm.loadRecents() }) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.caption)
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.text3)
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 8)
             .background(Color(NSColor.controlBackgroundColor))
 
             Divider()
@@ -471,25 +564,25 @@ struct RewriteView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "mic.fill")
-                            .font(.caption2)
-                            .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                            .font(.system(size: 9))
+                            .foregroundColor(Theme.text3)
                             .frame(width: 12)
                         Text(t.text)
-                            .font(.body)
+                            .font(Type.body)
                             .lineLimit(1)
-                            .foregroundColor(.primary)
+                            .foregroundColor(Theme.text)
                         Spacer()
                         Text(relativeTime(t.createdAt))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(Type.mono)
+                            .foregroundColor(Theme.text3)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 if t.id != vm.recentTranscripts.prefix(4).last?.id {
-                    Divider().padding(.leading, 36)
+                    Divider().padding(.leading, 44)
                 }
             }
         }
@@ -517,17 +610,9 @@ final class RewritePanel {
 
     func show(prefill text: String? = nil) {
         if panel == nil { panel = buildPanel() }
-
-        // Only prefill if the panel is idle — don't nuke an in-progress
-        // rewrite or a result the user hasn't read yet.
         if vm.mode == .idle || vm.mode == .result {
-            if let t = text {
-                vm.prefill(text: t)
-            } else {
-                vm.loadRecents()
-            }
+            if let t = text { vm.prefill(text: t) } else { vm.loadRecents() }
         }
-
         panel?.makeKeyAndOrderFront(nil)
         startOutsideClickMonitor()
     }
@@ -540,19 +625,16 @@ final class RewritePanel {
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
-            styleMask: [
-                .nonactivatingPanel,
-                .titled,          // visible title bar — matches History window style
-                .closable,
-                .resizable,
-            ],
+            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
         )
         p.title = "Wispr — Rewrite"
+        p.titleVisibility = .hidden
+        p.titlebarAppearsTransparent = true
         p.isOpaque = true
         p.backgroundColor = NSColor.windowBackgroundColor
-        p.isMovableByWindowBackground = false
+        p.isMovableByWindowBackground = true
         p.isFloatingPanel = true
         p.level = .floating
         p.becomesKeyOnlyIfNeeded = true
@@ -563,6 +645,10 @@ final class RewritePanel {
         p.hasShadow = true
         p.contentMinSize = NSSize(width: 500, height: 260)
         p.contentMaxSize = NSSize(width: 900, height: 800)
+
+        [p.standardWindowButton(.closeButton),
+         p.standardWindowButton(.miniaturizeButton),
+         p.standardWindowButton(.zoomButton)].forEach { $0?.isHidden = true }
 
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         p.contentView = hosting
@@ -577,7 +663,6 @@ final class RewritePanel {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, let p = self.panel, p.isVisible else { return }
-            // Close when idle or result — not while actively rewriting/running variants.
             if self.vm.mode == .idle || self.vm.mode == .result { self.hide() }
         }
     }
@@ -586,3 +671,4 @@ final class RewritePanel {
         if let m = outsideClickMonitor { NSEvent.removeMonitor(m); outsideClickMonitor = nil }
     }
 }
+

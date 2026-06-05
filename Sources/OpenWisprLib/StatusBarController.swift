@@ -365,7 +365,17 @@ class StatusBarController: NSObject {
 
         switch state {
         case .idle:
-            setIcon(StatusBarController.drawLogo(active: false))
+            // Use the branded rewrite template icon when available, fall back to drawn logo.
+            if let templateImage = NSImage(named: "RewriteTemplate") {
+                templateImage.isTemplate = true
+                setIcon(templateImage)
+            } else if let pdfURL = Bundle.main.url(forResource: "RewriteTemplate", withExtension: "pdf"),
+                      let img = NSImage(contentsOf: pdfURL) {
+                img.isTemplate = true
+                setIcon(img)
+            } else {
+                setIcon(StatusBarController.drawLogo(active: false))
+            }
         case .recording:
             startRecordingAnimation()
         case .transcribing:
