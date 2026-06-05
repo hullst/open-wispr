@@ -2,6 +2,7 @@ import AppKit
 
 public class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBar: StatusBarController!
+    var pill: PillOverlay!
     var hotkeyManagers: [HotkeyManager] = []
     var recorder: AudioRecorder!
     var transcriber: Transcriber!
@@ -10,9 +11,11 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     var isPressed = false
     var isReady = false
     public var lastTranscription: String?
+    private var recordingStartTime: Date?
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         statusBar = StatusBarController()
+        pill = PillOverlay()
         recorder = AudioRecorder()
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -239,7 +242,16 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleRecordingStart() {
         guard !isPressed else { return }
         isPressed = true
+        statusBar.liveLevel = 0
+        pill.level = 0
+        recorder.onLevelUpdate = { [weak self] level in
+            self?.statusBar.liveLevel = level
+            self?.pill.level = level
+        }
+        recordingStartTime = Date()
         statusBar.state = .recording
+        pill.state = .recording
+        pill.show()
         do {
             let outputURL: URL
             if Config.effectiveMaxRecordings(config.maxRecordings) == 0 {
@@ -251,20 +263,42 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             print("Error: \(error.localizedDescription)")
             isPressed = false
+            pill.hide()
             statusBar.state = .idle
         }
     }
 
+    // Whisper needs at least ~0.5 s of audio to produce meaningful output.
+    // Taps shorter than this are treated as accidental presses: the pill is
+    // dismissed immediately and no transcription job is started.
+    private static let minimumRecordingSeconds: TimeInterval = 0.5
+
     private func handleRecordingStop() {
         guard isPressed else { return }
         isPressed = false
+        recorder.onLevelUpdate = nil
+
+        let elapsed = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 1
+        recordingStartTime = nil
 
         guard let audioURL = recorder.stopRecording() else {
+            pill.hide()
             statusBar.state = .idle
             return
         }
 
+        // Tap too short to contain real speech — skip Whisper entirely.
+        if elapsed < AppDelegate.minimumRecordingSeconds {
+            pill.hide()
+            statusBar.state = .idle
+            if Config.effectiveMaxRecordings(config.maxRecordings) == 0 {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+            return
+        }
+
         statusBar.state = .transcribing
+        pill.state = .transcribing
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -282,9 +316,13 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 DispatchQueue.main.async {
                     if !text.isEmpty {
-                        self.lastTranscription = text
-                        self.inserter.insert(text: text)
+                        let polished = TextPolisher.polish(text)
+                        self.lastTranscription = polished
+                        self.inserter.insert(text: polished)
                     }
+                    // Only hide the pill if the user hasn't already started a new
+                    // recording — otherwise we'd close the pill mid-dictation.
+                    if !self.isPressed { self.pill.hide() }
                     self.statusBar.state = .idle
                     self.statusBar.buildMenu()
                 }
@@ -294,6 +332,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 DispatchQueue.main.async {
                     print("Error: \(error.localizedDescription)")
+                    if !self.isPressed { self.pill.hide() }
                     self.statusBar.state = .error(error.localizedDescription)
                     self.statusBar.buildMenu()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
