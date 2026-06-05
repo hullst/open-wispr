@@ -61,6 +61,21 @@ The foundational merge of OpenWispr fork + VP Rewriter into a single native Swif
 
 ---
 
+## v2.4 — Power Mode (VoiceInk-inspired, Wispr-native)
+
+Research source: VoiceInk (tryvoiceink.com, beingpax/VoiceInk). They have the right ideas but weak UX execution.
+Wispr is already ahead on: word-level diff, variants, AI linter, staged rewrite panel.
+Things worth borrowing:
+
+- [ ] **Auto-send after paste.** Per-style configurable key combo fired automatically after paste (None / ↩ / ⇧↩ / ⌘↩). Eliminates the extra keypress in Slack, Messages, Linear. Add to Preferences → Rewriter, per style or globally.
+- [ ] **Per-app mode switching.** Different default style + prompt per app bundle ID. E.g., Slack → Chat, Mail → Co-wide, VS Code → technical style. Trigger: active app changes while panel is open. Stored in UserDefaults keyed by bundle ID.
+- [ ] **URL-level triggers.** Go one step beyond app bundle — `gmail.com` vs `notion.so` vs `linear.app` get different modes. Requires reading frontmost browser URL via accessibility API.
+- [ ] **Trigger-word mode activation.** Speak a keyword at the start of dictation to auto-switch style (e.g., "email:" → Co-wide, "slack:" → Chat). Detected by TextPolisher post-processing before rewrite.
+- [ ] **Provider breadth.** Add Groq (free tier, fast) and Cerebras (free tier) as providers. Both are OpenAI-compatible endpoints — thin wrappers around OpenAIProvider with different base URLs.
+- [ ] **Personal dictionary.** Custom vocabulary + smart text replacements (trigger-word → expansion). E.g., "ai team" always expands to "AI Platform team". Runs in TextPolisher post-processing pipeline.
+
+---
+
 ## v3.0 — Future (out of scope for v2)
 
 - RAG / web search context for rewrites

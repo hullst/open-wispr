@@ -239,13 +239,13 @@ struct RewriteView: View {
                 TextEditor(text: $vm.sourceText)
                     .font(.body)
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 48, maxHeight: 100)
+                    .frame(minHeight: 60, maxHeight: 140)
             }
             .opacity(vm.mode == .result || vm.mode == .variants ? 0.45 : 1.0)
             .animation(.easeOut(duration: 0.2), value: vm.mode)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Color(NSColor.controlBackgroundColor))
     }
 
@@ -288,8 +288,8 @@ struct RewriteView: View {
                     .keyboardShortcut(.return, modifiers: .command)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     // MARK: Loading
@@ -350,26 +350,21 @@ struct RewriteView: View {
 
                 Spacer()
 
-                // Action icons — same style as History
-                HStack(spacing: 8) {
-                    Button { vm.copy(v.text) } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Copy")
+                // Action buttons
+                HStack(spacing: 6) {
+                    Button("Copy") { vm.copy(v.text) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
 
-                    Button { vm.paste(v.text) } label: {
-                        Image(systemName: "arrow.up.doc.on.clipboard")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Paste to active app (⌘⇧↩)")
-                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+                    Button("Paste") { vm.paste(v.text) }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.return, modifiers: [.command, .shift])
+                        .help("⌘⇧↩")
 
-                    Button { vm.getVariants() } label: {
-                        Image(systemName: "square.on.square.dashed")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Get 3 variants")
+                    Button("Variants") { vm.getVariants() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
             }
 
@@ -394,8 +389,8 @@ struct RewriteView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
@@ -429,13 +424,14 @@ struct RewriteView: View {
                     }
 
                     if !v.isLoading && v.error == nil {
-                        HStack(spacing: 8) {
-                            Button { vm.copy(v.text) } label: { Image(systemName: "doc.on.doc") }
-                                .buttonStyle(.plain).help("Copy")
-                                .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: [.command, .option])
-                            Button { vm.paste(v.text) } label: { Image(systemName: "arrow.up.doc.on.clipboard") }
-                                .buttonStyle(.plain).help("Paste")
+                        VStack(spacing: 4) {
+                            Button("Paste") { vm.paste(v.text) }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
                                 .keyboardShortcut(KeyEquivalent(Character(String(v.index + 1))), modifiers: .command)
+                            Button("Copy") { vm.copy(v.text) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                         }
                     }
                 }
@@ -543,7 +539,7 @@ final class RewritePanel {
 
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
             styleMask: [
                 .nonactivatingPanel,
                 .titled,          // visible title bar — matches History window style
@@ -565,8 +561,8 @@ final class RewritePanel {
         p.isReleasedWhenClosed = false
         p.animationBehavior = .utilityWindow
         p.hasShadow = true
-        p.contentMinSize = NSSize(width: 420, height: 240)
-        p.contentMaxSize = NSSize(width: 800, height: 720)
+        p.contentMinSize = NSSize(width: 500, height: 260)
+        p.contentMaxSize = NSSize(width: 900, height: 800)
 
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         p.contentView = hosting
