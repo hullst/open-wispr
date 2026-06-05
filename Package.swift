@@ -2,11 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "open-wispr",
-    platforms: [.macOS(.v13)],
+    name: "Wispr",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
+    ],
     targets: [
         .target(
-            name: "OpenWisprLib",
+            name: "WisprLib",
+            dependencies: [
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+            ],
             path: "Sources/OpenWisprLib",
             linkerSettings: [
                 .linkedFramework("CoreAudio"),
@@ -15,13 +21,13 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "open-wispr",
-            dependencies: ["OpenWisprLib"],
+            name: "wispr",
+            dependencies: ["WisprLib"],
             path: "Sources/OpenWispr"
         ),
         .testTarget(
-            name: "OpenWisprTests",
-            dependencies: ["OpenWisprLib"],
+            name: "WisprTests",
+            dependencies: ["WisprLib"],
             path: "Tests/OpenWisprTests"
         ),
     ]

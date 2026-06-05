@@ -1,16 +1,20 @@
 <p align="center">
-  <img src="logo.svg" width="80" alt="open-wispr logo">
+  <img src="logo.svg" width="80" alt="Wispr logo">
 </p>
 
-<h1 align="center">open-wispr</h1>
+<h1 align="center">Wispr</h1>
 
 <p align="center">
-  <strong><a href="https://open-wispr.com">open-wispr.com</a></strong><br>
-  Local, private voice dictation for macOS. Hold a key, speak, release — your words appear at the cursor.<br>
-  Everything runs on-device. No audio or text ever leaves your machine.
+  Always-on dictation + semantic rewriting for macOS.<br>
+  Hold Globe to dictate. One hotkey to clean it up. Everything local by default.
 </p>
 
-<p align="center">Powered by <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> with Metal acceleration on Apple Silicon.</p>
+<p align="center">Powered by <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> (Metal) for transcription and Ollama / Claude / GPT for rewriting.</p>
+
+> **Work in progress — `feature/merge-rewriter`**
+> Wispr is a merge of the OpenWispr fork (dictation) and VP Rewriter (Electron).
+> The dictation path is stable. The rewriter UI, history, and Preferences are being built now.
+> See [`docs/MERGE_SPEC.md`](docs/MERGE_SPEC.md) for the full architecture brief.
 
 ## Install
 
