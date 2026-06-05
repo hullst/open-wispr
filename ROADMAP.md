@@ -25,7 +25,7 @@ The foundational merge of OpenWispr fork + VP Rewriter into a single native Swif
 
 ## v2.1 — Voice Quality
 
-- [ ] **Swap local default to Gemma 3 4B.** Current default is `gemma3:4b` — verify it's been pulled via `ollama pull gemma3:4b`. The old `gemma2:9b` should still be selectable but not default.
+- [ ] **Evaluate Gemma 3 4B as local default.** Current default is `gemma2:9b` (the battle-tested VP Rewriter model). Run an eval against `gemma3:4b` — smaller, faster on Apple Silicon. Only switch if voice-preservation quality is equal or better. Run: `ollama pull gemma3:4b`, then compare outputs side-by-side in the rewrite sheet using the everyday style on 10 real dictations.
 - [ ] **AI linter port.** Port `ai-blocklist.js` linter logic to Swift. On every rewrite, run the deterministic linter. If violations found: show yellow warning in result pane listing the offenders. Do NOT auto-reject — just flag.
 - [ ] **Stream Ollama responses.** Switch OllamaProvider from blocking to streaming (`"stream": true`). Update RewriteView to show tokens as they arrive. Better perceived latency for long rewrites.
 - [ ] **Rewrite sheet keyboard shortcut.** Bind `⌘↩` to trigger Rewrite (already done in the view — verify it works). Consider adding `⌘W` to close panel.

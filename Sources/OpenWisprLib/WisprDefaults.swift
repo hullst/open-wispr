@@ -28,7 +28,7 @@ final class WisprDefaults {
     }
 
     var defaultOllamaModel: String {
-        get { defaults.string(forKey: "defaultOllamaModel") ?? "gemma3:4b" }
+        get { defaults.string(forKey: "defaultOllamaModel") ?? "gemma2:9b" }
         set { defaults.set(newValue, forKey: "defaultOllamaModel") }
     }
 

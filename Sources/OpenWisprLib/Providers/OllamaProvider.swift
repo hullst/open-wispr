@@ -8,7 +8,7 @@ final class OllamaProvider: RewriteProvider {
     private(set) var availableModels: [String] = []
     var selectedModel: String
 
-    init(selectedModel: String = "gemma3:4b") {
+    init(selectedModel: String = "gemma2:9b") {
         self.selectedModel = selectedModel
     }
 
