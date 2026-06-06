@@ -1,0 +1,98 @@
+[
+  {
+    "id": "attribution-01",
+    "category": "meaning-preservation",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Core bug: 'they' (Yogi/James) sent the code, not Amit. Output must NOT attribute the code to Amit.",
+    "input": "Alright, Amit eah, sorry, I've been really busy this week with the Google Compute stuff. Honestly, the AI stuff has been on the back burner. I saw that they sent over some code. I assumed that Yogi and James were working on it."
+  },
+  {
+    "id": "ask-first-01",
+    "category": "structure",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Ask must come first. Original buries the request after a lot of context.",
+    "input": "Yeah so we had the incident last Tuesday where the pipeline went down for about two hours, and the post-mortem is done but I haven't reviewed it yet, so I was wondering if you could send me the link to the Confluence page with the full report."
+  },
+  {
+    "id": "own-mistake-01",
+    "category": "voice",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Must use 'that one's on me' not 'my bad'. Owning a mistake at full size.",
+    "input": "Yeah that was my bad, I totally dropped the ball on the deploy review last week, I should have caught that before it went out."
+  },
+  {
+    "id": "numbers-01",
+    "category": "rules",
+    "style": "everyday",
+    "length": "same",
+    "notes": "All numbers must be digits. Input has 'five', 'two', 'fifteen' as words.",
+    "input": "We have about five open P1s right now, two of them are blocked on the platform team, and we're about fifteen days behind on the Q3 roadmap."
+  },
+  {
+    "id": "chat-quick-01",
+    "category": "style",
+    "style": "chat",
+    "length": "same",
+    "notes": "Should be terse, fragment-friendly, 1-2 lines. No formal structure.",
+    "input": "Hey can you send me that document we were looking at yesterday, the one about the migration plan for the auth service."
+  },
+  {
+    "id": "chat-pushback-01",
+    "category": "voice",
+    "style": "chat",
+    "length": "same",
+    "notes": "Soft pushback with one-clause reason. Calm, direct, not blunt. Should NOT sound aggressive.",
+    "input": "Yeah I don't think we should merge that PR this week, the auth migration is still too hot and if something breaks it's going to be hard to tell which change caused it."
+  },
+  {
+    "id": "companywide-01",
+    "category": "style",
+    "style": "companywide",
+    "length": "same",
+    "notes": "Org announcement. Must lead with point, include stake, end with concrete next step (owner + date).",
+    "input": "Hey everyone, uh, so starting next month we're going to be moving all our CI/CD pipelines from Jenkins to GitHub Actions. The engineering team has been working on this for about three months now. It's going to mean faster build times and less maintenance overhead for everyone. More details will be in the all-hands next Thursday."
+  },
+  {
+    "id": "em-dash-trap-01",
+    "category": "rules",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Context where em-dashes are very tempting. Must use ' -- ' not '—' or '–'. Also tests double-dash-after-period rule.",
+    "input": "The performance regression we saw last week, it turned out to be the new caching layer, it was invalidating too aggressively, and it's fixed now but we should watch the dashboards through the weekend just to be sure."
+  },
+  {
+    "id": "banned-words-trap-01",
+    "category": "rules",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Topic where 'leverage', 'utilize', 'robust', 'streamline' are extremely tempting. Must use plain alternatives.",
+    "input": "We should use the new API to do the data processing instead of the old batch scripts, it'll be more reliable and we can simplify the whole pipeline, and the team can use that time we save for the new feature work."
+  },
+  {
+    "id": "external-delay-01",
+    "category": "voice",
+    "style": "everyday",
+    "length": "same",
+    "notes": "External blocker. Must name who it's waiting on (security team), must NOT phrase it as own fault.",
+    "input": "Yeah we're still waiting on the security team to finish their review of the new auth flow. It's been about a week and a half. We can't go to production until they sign off."
+  },
+  {
+    "id": "shorten-01",
+    "category": "length",
+    "style": "everyday",
+    "length": "shorten",
+    "notes": "Long rambling input. Must compress significantly while preserving: Q3 slip, Kafka blocker, 2-week delay, mid-July, roadmap update needed.",
+    "input": "So basically what happened was, we had a team sync on Monday and we went through the Q3 priorities and we kind of realized that the data platform work is probably going to slip because we're still waiting on the infrastructure team to provision the new Kafka cluster, and they said they need another two weeks at least, and that basically means the data pipeline work can't start until mid-July at the earliest, so we're going to have to push the initial milestone out and update the roadmap accordingly and communicate that to the stakeholders."
+  },
+  {
+    "id": "expand-01",
+    "category": "length",
+    "style": "everyday",
+    "length": "expand",
+    "notes": "Terse input. Expand with context and structure. Must NOT add invented specifics -- only flesh out what's implied.",
+    "input": "Quick heads up, the deploy is going out tonight at 9 PM. Ping me if you see anything weird."
+  }
+]
