@@ -32,10 +32,17 @@
       "Bash(xattr -cr \"/Applications/VP Rewriter.app\")",
       "Bash(shasum -a 256 \"/Applications/VP Rewriter.app/Contents/Resources/app.asar\")",
       "Bash(chmod +x build-icon.sh)",
-      "Bash(./build-icon.sh)"
+      "Bash(./build-icon.sh)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(python3 -c \"import sys,json; [print\\(m['name']\\) for m in json.load\\(sys.stdin\\)['models']]\")",
+      "Bash(python3 -c \"import sys,json; [print\\(f\\\\\"{m['name']}: {m['size']/1e9:.1f} GB\\\\\"\\) for m in json.load\\(sys.stdin\\)['models']]\")",
+      "Bash(python3 -c \"import sys,json; [print\\(f\\\\\"{m['name']}: modified {m['modified_at']}\\\\\"\\) for m in json.load\\(sys.stdin\\)['models']]\")",
+      "Bash(mkdir -p /Users/stephen.hull/Documents/Claude/Projects/Wispr/eval/results)",
+      "Bash(python3 eval/run.py gemma2:9b --cases attribution-01,numbers-01,own-mistake-01)"
     ],
     "additionalDirectories": [
-      "/Users/stephen.hull/Documents/Claude/Projects"
+      "/Users/stephen.hull/Documents/Claude/Projects",
+      "/Users/stephen.hull/Documents/Claude/Projects/Wispr/eval"
     ]
   }
 }

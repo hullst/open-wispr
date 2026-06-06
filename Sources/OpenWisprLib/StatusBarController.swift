@@ -309,13 +309,18 @@ class StatusBarController: NSObject {
         menu.addItem(NSMenuItem.separator())
 
         let rewriteTarget = MenuItemTarget {
-            let last = PersistenceContainer.shared.mostRecentTranscript()?.text
-            Task { @MainActor in RewritePanel.shared.show(prefill: last) }
+            Task { @MainActor in
+                if RewritePanel.shared.isVisible {
+                    RewritePanel.shared.toggle()
+                } else {
+                    let last = PersistenceContainer.shared.mostRecentTranscript()?.text
+                    RewritePanel.shared.show(prefill: last)
+                }
+            }
         }
         menuItemTargets.append(rewriteTarget)
-        let rewriteItem = NSMenuItem(title: "Rewrite Last Transcript", action: #selector(MenuItemTarget.invoke), keyEquivalent: "w")
+        let rewriteItem = NSMenuItem(title: "Rewrite Panel", action: #selector(MenuItemTarget.invoke), keyEquivalent: "w")
         rewriteItem.target = rewriteTarget
-        rewriteItem.isEnabled = PersistenceContainer.shared.mostRecentTranscript() != nil
         menu.addItem(rewriteItem)
 
         let historyTarget = MenuItemTarget { Task { @MainActor in HistoryWindowController.shared.show() } }

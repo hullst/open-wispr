@@ -63,6 +63,13 @@ final class RewriteViewModel: ObservableObject {
         loadRecents()
     }
 
+    func appendOrSet(text: String) {
+        let existing = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        sourceText = existing.isEmpty ? text : existing + " " + text
+        cancel()
+        loadRecents()
+    }
+
     func cancel() {
         activeTasks.forEach { $0.cancel() }
         activeTasks = []
@@ -512,7 +519,8 @@ struct RewriteView: View {
                             .foregroundColor(Theme.text)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
 
                 // Footer
                 if filled {
@@ -522,7 +530,7 @@ struct RewriteView: View {
                 }
             }
             .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(isSelected ? Theme.accentSoft : Theme.panelSoft)
             .overlay(
                 RoundedRectangle(cornerRadius: 11)
@@ -604,9 +612,11 @@ final class RewritePanel {
     static let shared = RewritePanel()
     private var panel: NSPanel?
     let vm = RewriteViewModel()
-    private var outsideClickMonitor: Any?
 
     private init() {}
+
+    var isVisible: Bool { panel?.isVisible == true }
+    var isKeyWindow: Bool { panel?.isKeyWindow == true }
 
     func show(prefill text: String? = nil) {
         if panel == nil { panel = buildPanel() }
@@ -614,17 +624,15 @@ final class RewritePanel {
             if let t = text { vm.prefill(text: t) } else { vm.loadRecents() }
         }
         panel?.makeKeyAndOrderFront(nil)
-        startOutsideClickMonitor()
     }
 
-    func hide() {
-        panel?.orderOut(nil)
-        stopOutsideClickMonitor()
+    func toggle() {
+        if isVisible { panel?.orderOut(nil) } else { show() }
     }
 
     private func buildPanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 600),
             styleMask: [.nonactivatingPanel, .titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -632,7 +640,7 @@ final class RewritePanel {
         p.title = "Wispr — Rewrite"
         p.isOpaque = true
         p.backgroundColor = NSColor.windowBackgroundColor
-        p.isMovableByWindowBackground = false  // drag by title bar, not background
+        p.isMovableByWindowBackground = false
         p.isFloatingPanel = true
         p.level = .floating
         p.becomesKeyOnlyIfNeeded = true
@@ -641,34 +649,13 @@ final class RewritePanel {
         p.isReleasedWhenClosed = false
         p.animationBehavior = .utilityWindow
         p.hasShadow = true
-        p.contentMinSize = NSSize(width: 500, height: 260)
-        p.contentMaxSize = NSSize(width: 900, height: 800)
+        p.contentMinSize = NSSize(width: 480, height: 240)
 
         let hosting = NSHostingView(rootView: RewriteView(vm: vm))
         p.contentView = hosting
         p.setFrameAutosaveName("WisprRewritePanel")
         p.center()
         return p
-    }
-
-    private func startOutsideClickMonitor() {
-        stopOutsideClickMonitor()
-        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
-            guard let self, let p = self.panel, p.isVisible else { return }
-            guard self.vm.mode == .idle || self.vm.mode == .result else { return }
-            // nonactivatingPanel means every click — including title bar drags —
-            // registers as a global event. Check the actual mouse position in
-            // screen coordinates: if the click is inside the panel frame the user
-            // is interacting with the panel, not clicking away from it.
-            if p.frame.contains(NSEvent.mouseLocation) { return }
-            self.hide()
-        }
-    }
-
-    private func stopOutsideClickMonitor() {
-        if let m = outsideClickMonitor { NSEvent.removeMonitor(m); outsideClickMonitor = nil }
     }
 }
 

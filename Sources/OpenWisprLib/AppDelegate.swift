@@ -357,10 +357,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                         let polished = TextPolisher.polish(text)
                         self.lastTranscription = polished
                         PersistenceContainer.shared.insertTranscript(text: polished, source: "dictation")
-                        self.inserter.insert(text: polished)
-                        // If the rewrite panel is open, push the new dictation in
-                        // so the user can immediately rewrite what they just said.
-                        RewritePanel.shared.vm.prefill(text: polished)
+                        if RewritePanel.shared.isKeyWindow {
+                            // Panel owns the keyboard — append to existing source text
+                            // (or replace if empty); skip the Cmd+V paste.
+                            RewritePanel.shared.vm.appendOrSet(text: polished)
+                        } else {
+                            self.inserter.insert(text: polished)
+                            RewritePanel.shared.vm.prefill(text: polished)
+                        }
                     }
                     // Only hide the pill if the user hasn't already started a new
                     // recording — otherwise we'd close the pill mid-dictation.
