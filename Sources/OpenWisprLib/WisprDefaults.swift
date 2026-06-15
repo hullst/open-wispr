@@ -8,8 +8,37 @@ final class WisprDefaults {
     private init() {}
 
     var defaultProviderId: String {
-        get { defaults.string(forKey: "defaultProviderId") ?? "local" }
+        get { defaults.string(forKey: "defaultProviderId") ?? "claude-code" }
         set { defaults.set(newValue, forKey: "defaultProviderId") }
+    }
+
+    var defaultClaudeCodeModel: String {
+        get { defaults.string(forKey: "defaultClaudeCodeModel") ?? ClaudeCodeModel.opus.rawValue }
+        set { defaults.set(newValue, forKey: "defaultClaudeCodeModel") }
+    }
+
+    // "subscription" (personal Mac, Max-plan OAuth) or "bedrock" (work Mac, AWS).
+    var claudeCodeAuthMode: String {
+        get { defaults.string(forKey: "claudeCodeAuthMode") ?? "subscription" }
+        set { defaults.set(newValue, forKey: "claudeCodeAuthMode") }
+    }
+
+    var claudeCodeBedrockRegion: String {
+        get { defaults.string(forKey: "claudeCodeBedrockRegion") ?? "us-east-1" }
+        set { defaults.set(newValue, forKey: "claudeCodeBedrockRegion") }
+    }
+
+    // AWS named profile (from ~/.aws/config). Empty = default credential chain.
+    var claudeCodeBedrockProfile: String {
+        get { defaults.string(forKey: "claudeCodeBedrockProfile") ?? "" }
+        set { defaults.set(newValue, forKey: "claudeCodeBedrockProfile") }
+    }
+
+    // Bedrock model ID or inference-profile ARN, e.g.
+    // "us.anthropic.claude-sonnet-4-5-20250929-v1:0". Work-specific — no default.
+    var claudeCodeBedrockModel: String {
+        get { defaults.string(forKey: "claudeCodeBedrockModel") ?? "" }
+        set { defaults.set(newValue, forKey: "claudeCodeBedrockModel") }
     }
 
     var defaultStyleId: String {
@@ -28,8 +57,13 @@ final class WisprDefaults {
     }
 
     var defaultOllamaModel: String {
-        get { defaults.string(forKey: "defaultOllamaModel") ?? "gemma2:9b" }
+        get { defaults.string(forKey: "defaultOllamaModel") ?? "phi4:14b" }
         set { defaults.set(newValue, forKey: "defaultOllamaModel") }
+    }
+
+    var defaultGeminiModel: String {
+        get { defaults.string(forKey: "defaultGeminiModel") ?? GeminiModel.flashLatest.rawValue }
+        set { defaults.set(newValue, forKey: "defaultGeminiModel") }
     }
 
     // When true, the rewrite sheet auto-pastes the result to the active app.

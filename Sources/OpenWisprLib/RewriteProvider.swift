@@ -4,6 +4,8 @@ struct RewriteResult {
     let text: String
     let modelUsed: String
     let latencyMs: Int
+    // Set by RewriteService after logging, so the UI can attach the user's edit.
+    var rewriteId: Int64? = nil
 }
 
 protocol RewriteProvider {
