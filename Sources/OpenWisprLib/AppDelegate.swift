@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 
 public class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBar: StatusBarController!
@@ -87,7 +88,11 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupInner() throws {
         config = Config.load()
         inserter = TextInserter()
-        recorder.preferredDeviceID = config.audioInputDeviceID
+        migrateAudioDeviceUIDIfNeeded()
+        recorder.preferredDeviceID = AudioDeviceManager.resolveConfiguredDeviceID(
+            uid: config.audioInputDeviceUID,
+            legacyID: config.audioInputDeviceID
+        )
         if Config.effectiveMaxRecordings(config.maxRecordings) == 0 {
             RecordingStore.deleteAllRecordings()
         }
@@ -169,6 +174,29 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
 
         recorder.prewarm()
 
+        // Reload audio engine when macOS changes the audio hardware configuration
+        // (e.g. Jabra reconnects, sample rate change, sleep/wake). Without this the
+        // waveform goes silent until the user manually toggles the mic in Preferences.
+        NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, !self.isPressed else { return }
+            self.reresolveAudioDeviceAndReload()
+        }
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // After sleep/wake macOS may reassign the numeric AudioDeviceID, so the
+            // cached preferredDeviceID points at a dead device -- the waveform looks
+            // alive but records nothing. Re-resolve by stable UID before reloading.
+            self?.reresolveAudioDeviceAndReload()
+        }
+
         DispatchQueue.main.async { [weak self] in
             self?.startListening()
         }
@@ -209,13 +237,39 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         applyConfigChange(newConfig)
     }
 
+    /// A legacy config holds only the numeric AudioDeviceID. If it still refers to
+    /// a real device, persist that device's stable UID so the selection survives
+    /// the next sleep/wake or reboot.
+    private func migrateAudioDeviceUIDIfNeeded() {
+        guard config.audioInputDeviceUID == nil,
+              let legacyID = config.audioInputDeviceID,
+              let uid = AudioDeviceManager.getDeviceUID(deviceID: legacyID) else { return }
+        config.audioInputDeviceUID = uid
+        try? config.save()
+    }
+
+    /// Re-resolve the configured device by its stable UID and reload the engine.
+    /// Used on wake and on audio-hardware config changes, where the numeric ID may
+    /// have been reassigned out from under the cached preferredDeviceID.
+    private func reresolveAudioDeviceAndReload() {
+        recorder.preferredDeviceID = AudioDeviceManager.resolveConfiguredDeviceID(
+            uid: config.audioInputDeviceUID,
+            legacyID: config.audioInputDeviceID
+        )
+        recorder.reload()
+    }
+
     func applyConfigChange(_ newConfig: Config) {
         guard isReady else { return }
         let wasDownloading: Bool
         if case .downloading = statusBar.state { wasDownloading = true } else { wasDownloading = false }
-        let deviceChanged = recorder.preferredDeviceID != newConfig.audioInputDeviceID
+        let newDeviceID = AudioDeviceManager.resolveConfiguredDeviceID(
+            uid: newConfig.audioInputDeviceUID,
+            legacyID: newConfig.audioInputDeviceID
+        )
+        let deviceChanged = recorder.preferredDeviceID != newDeviceID
         config = newConfig
-        recorder.preferredDeviceID = config.audioInputDeviceID
+        recorder.preferredDeviceID = newDeviceID
         if deviceChanged {
             recorder.reload()
         }

@@ -14,6 +14,10 @@ public struct Config: Codable {
     public var maxRecordings: Int?
     public var toggleMode: FlexBool?
     public var audioInputDeviceID: UInt32?
+    // Stable CoreAudio device UID. Numeric AudioDeviceIDs get reassigned across
+    // sleep/wake, reboot, and USB replug; the UID does not. Resolved to a current
+    // ID at startup and on wake so the mic selection survives. (Upstream PR #68.)
+    public var audioInputDeviceUID: String?
 
     public var hotkey: HotkeyConfig {
         get { hotkeys[0] }
@@ -44,6 +48,7 @@ public struct Config: Codable {
         case maxRecordings
         case toggleMode
         case audioInputDeviceID
+        case audioInputDeviceUID
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,6 +69,7 @@ public struct Config: Codable {
         self.maxRecordings = try c.decodeIfPresent(Int.self, forKey: .maxRecordings)
         self.toggleMode = try c.decodeIfPresent(FlexBool.self, forKey: .toggleMode)
         self.audioInputDeviceID = try c.decodeIfPresent(UInt32.self, forKey: .audioInputDeviceID)
+        self.audioInputDeviceUID = try c.decodeIfPresent(String.self, forKey: .audioInputDeviceUID)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -77,6 +83,7 @@ public struct Config: Codable {
         try c.encodeIfPresent(maxRecordings, forKey: .maxRecordings)
         try c.encodeIfPresent(toggleMode, forKey: .toggleMode)
         try c.encodeIfPresent(audioInputDeviceID, forKey: .audioInputDeviceID)
+        try c.encodeIfPresent(audioInputDeviceUID, forKey: .audioInputDeviceUID)
     }
 
     public init(
