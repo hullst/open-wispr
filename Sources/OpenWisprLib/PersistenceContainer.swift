@@ -48,6 +48,12 @@ final class PersistenceContainer {
             }
         }
 
+        migrator.registerMigration("v2_editedText") { db in
+            try db.alter(table: "rewrites") { t in
+                t.add(column: "editedText", .text)
+            }
+        }
+
         try migrator.migrate(db)
     }
 
@@ -70,7 +76,7 @@ final class PersistenceContainer {
         provider: String,
         styleId: String?,
         latencyMs: Int
-    ) {
+    ) -> Int64? {
         var r = WisprRewrite(
             transcriptId: transcriptId,
             originalText: originalText,
@@ -81,6 +87,17 @@ final class PersistenceContainer {
             latencyMs: latencyMs
         )
         try? db.write { db in try r.insert(db) }
+        return r.id
+    }
+
+    // Capture the user's edited version of a rewrite (the compounding signal).
+    func updateEditedText(id: Int64, editedText: String) {
+        try? db.write { db in
+            try db.execute(
+                sql: "UPDATE rewrites SET editedText = ? WHERE id = ?",
+                arguments: [editedText, id]
+            )
+        }
     }
 
     func deleteTranscript(_ transcript: Transcript) {
@@ -94,6 +111,30 @@ final class PersistenceContainer {
     func allTranscripts(limit: Int = 200) -> [Transcript] {
         (try? db.read { db in
             try Transcript.order(Column("createdAt").desc).limit(limit).fetchAll(db)
+        }) ?? []
+    }
+
+    // Transcript IDs that have at least one rewrite -- used to badge the recents
+    // list (transcription-only vs rewritten).
+    func transcriptIdsWithRewrites() -> Set<Int64> {
+        let ids = (try? db.read { db in
+            try Int64.fetchAll(db, sql:
+                "SELECT DISTINCT transcriptId FROM rewrites WHERE transcriptId IS NOT NULL")
+        }) ?? []
+        return Set(ids)
+    }
+
+    // Rows where the user made a real tweak (the compounding signal). Used by the
+    // content-free VoiceProfile export.
+    func editedRewrites() -> [WisprRewrite] {
+        (try? db.read { db in
+            try WisprRewrite.fetchAll(db, sql: """
+                SELECT * FROM rewrites
+                WHERE editedText IS NOT NULL
+                  AND TRIM(editedText) <> ''
+                  AND editedText <> rewrittenText
+                ORDER BY id DESC
+            """)
         }) ?? []
     }
 

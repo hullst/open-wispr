@@ -1,23 +1,35 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct PreferencesView: View {
     @State private var selection: Section = .general
     @State private var anthropicKey: String = ""
     @State private var openAIKey: String = ""
+    @State private var geminiKey: String = ""
     @State private var anthropicStatus: KeyStatus = .notSet
     @State private var openAIStatus: KeyStatus = .notSet
+    @State private var geminiStatus: KeyStatus = .notSet
     @State private var isTesting = false
     @State private var defaultProvider: String = WisprDefaults.shared.defaultProviderId
     @State private var defaultStyle: String = WisprDefaults.shared.defaultStyleId
     @State private var autoPaste: Bool = WisprDefaults.shared.autoPasteRewrites
     @State private var ollamaModel: String = WisprDefaults.shared.defaultOllamaModel
+    @State private var claudeCodeModel: String = WisprDefaults.shared.defaultClaudeCodeModel
+    @State private var claudeCodeAuthMode: String = WisprDefaults.shared.claudeCodeAuthMode
+    @State private var bedrockRegion: String = WisprDefaults.shared.claudeCodeBedrockRegion
+    @State private var bedrockProfile: String = WisprDefaults.shared.claudeCodeBedrockProfile
+    @State private var bedrockModel: String = WisprDefaults.shared.claudeCodeBedrockModel
+    @State private var profilePreview: String = ""
+    @State private var profileEditCount: Int = 0
+    @State private var exportMessage: String? = nil
     @State private var hotkeyCombo: RewriteHotkeyManager.HotkeyCombo? = RewriteHotkeyManager.HotkeyCombo.load()
     @State private var isRecordingHotkey = false
 
     enum Section: String, CaseIterable {
         case general = "General"
         case rewriter = "Rewriter"
+        case voice = "Voice"
         case apiKeys = "API Keys"
         case hotkeys = "Hotkeys"
 
@@ -25,13 +37,14 @@ struct PreferencesView: View {
             switch self {
             case .general: return "gear"
             case .rewriter: return "pencil.and.sparkles"
+            case .voice: return "person.wave.2"
             case .apiKeys: return "key"
             case .hotkeys: return "keyboard"
             }
         }
     }
 
-    enum KeyStatus { case notSet, configured, invalid }
+    enum KeyStatus { case notSet, configured, invalid, error(String) }
 
     var body: some View {
         NavigationSplitView {
@@ -60,6 +73,7 @@ struct PreferencesView: View {
                     switch selection {
                     case .general:   generalSection
                     case .rewriter:  rewriterSection
+                    case .voice:     voiceSection
                     case .apiKeys:   apiKeysSection
                     case .hotkeys:   hotkeysSection
                     }
@@ -93,15 +107,54 @@ struct PreferencesView: View {
     private var rewriterSection: some View {
         Form {
             Picker("Default model", selection: $defaultProvider) {
+                if RewriteService.shared.claudeCode.isConfigured {
+                    Text("Claude Code (subscription)").tag("claude-code")
+                }
                 Text("Local (Ollama)").tag("local")
                 if KeychainService.shared.getKey(provider: "anthropic") != nil {
-                    Text("Claude (Anthropic)").tag("anthropic")
+                    Text("Claude (Anthropic API)").tag("anthropic")
                 }
                 if KeychainService.shared.getKey(provider: "openai") != nil {
                     Text("GPT (OpenAI)").tag("openai")
                 }
+                if KeychainService.shared.getKey(provider: "gemini") != nil {
+                    Text("Gemini (Google)").tag("gemini")
+                }
             }
             .onChange(of: defaultProvider) { WisprDefaults.shared.defaultProviderId = $0 }
+
+            if defaultProvider == "claude-code" {
+                Picker("Auth", selection: $claudeCodeAuthMode) {
+                    Text("Subscription (personal Mac)").tag("subscription")
+                    Text("Bedrock (work Mac)").tag("bedrock")
+                }
+                .onChange(of: claudeCodeAuthMode) { WisprDefaults.shared.claudeCodeAuthMode = $0 }
+
+                if claudeCodeAuthMode == "subscription" {
+                    Picker("Claude Code model", selection: $claudeCodeModel) {
+                        ForEach(ClaudeCodeModel.allCases, id: \.rawValue) { m in
+                            Text(m.displayName).tag(m.rawValue)
+                        }
+                    }
+                    .onChange(of: claudeCodeModel) { WisprDefaults.shared.defaultClaudeCodeModel = $0 }
+                } else {
+                    LabeledContent("AWS region") {
+                        TextField("us-east-1", text: $bedrockRegion)
+                            .frame(width: 150)
+                            .onSubmit { WisprDefaults.shared.claudeCodeBedrockRegion = bedrockRegion }
+                    }
+                    LabeledContent("AWS profile") {
+                        TextField("(default chain)", text: $bedrockProfile)
+                            .frame(width: 150)
+                            .onSubmit { WisprDefaults.shared.claudeCodeBedrockProfile = bedrockProfile }
+                    }
+                    LabeledContent("Bedrock model ID") {
+                        TextField("us.anthropic.claude-sonnet-4-…", text: $bedrockModel)
+                            .frame(width: 220)
+                            .onSubmit { WisprDefaults.shared.claudeCodeBedrockModel = bedrockModel }
+                    }
+                }
+            }
 
             Picker("Default style", selection: $defaultStyle) {
                 ForEach(StylePresets.all, id: \.id) { s in
@@ -119,6 +172,82 @@ struct PreferencesView: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .padding(.top, 4)
+    }
+
+    // MARK: Voice
+
+    private var voiceSection: some View {
+        Form {
+            SwiftUI.Section {
+                Text("Export a content-free summary of how you edit rewrites — counts and patterns only. No transcripts, names, or content. Safe to email to yourself and merge your voice across machines.")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                LabeledContent("Edits captured") {
+                    Text("\(profileEditCount)").foregroundColor(.secondary)
+                }
+            }
+
+            SwiftUI.Section("Preview — exactly what leaves the machine") {
+                Text(profileEditCount == 0
+                     ? "No edits captured yet. Edit a few rewrites first."
+                     : profilePreview)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            SwiftUI.Section {
+                HStack(spacing: 10) {
+                    Button("Export…") { exportVoiceProfile() }
+                        .disabled(profileEditCount == 0)
+                    if let msg = exportMessage {
+                        Text(msg).font(.caption).foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding(.top, 4)
+        .onAppear { refreshVoiceProfile() }
+    }
+
+    private var profileLabel: String {
+        WisprDefaults.shared.claudeCodeAuthMode == "bedrock" ? "work" : "personal"
+    }
+
+    private func refreshVoiceProfile() {
+        let label = profileLabel
+        // Run synthesis off the main thread so mounting the pane never blocks the
+        // UI; populate the preview when it's ready.
+        Task { @MainActor in
+            let result: (Int, String) = await Task.detached(priority: .userInitiated) {
+                print("VoiceProfile: synthesizing…")
+                let p = VoiceProfileSynthesizer.synthesize(label: label)
+                let json = VoiceProfileSynthesizer.jsonString(p)
+                print("VoiceProfile: done (\(p.editsAnalyzed) edits)")
+                return (p.editsAnalyzed, json)
+            }.value
+            profileEditCount = result.0
+            profilePreview = result.1
+        }
+    }
+
+    private func exportVoiceProfile() {
+        let json = VoiceProfileSynthesizer.jsonString(
+            VoiceProfileSynthesizer.synthesize(label: profileLabel))
+        let panel = NSSavePanel()
+        panel.title = "Export Voice Profile"
+        panel.nameFieldStringValue = "wispr-voice-profile-\(profileLabel).json"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try json.data(using: .utf8)?.write(to: url)
+                exportMessage = "Saved — email it to yourself."
+            } catch {
+                exportMessage = "Save failed: \(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: API Keys
@@ -140,6 +269,14 @@ struct PreferencesView: View {
                 key: $openAIKey,
                 status: $openAIStatus
             )
+            Divider().padding(.leading, 16)
+            keyRow(
+                provider: "gemini",
+                label: "Google (Gemini)",
+                icon: "globe",
+                key: $geminiKey,
+                status: $geminiStatus
+            )
             Spacer()
         }
         .padding(.top, 4)
@@ -155,9 +292,16 @@ struct PreferencesView: View {
                 statusBadge(provider: provider, status: status.wrappedValue)
             }
             HStack(spacing: 6) {
-                SecureField("Paste API key…", text: key)
+                TextField("API key…", text: key)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { saveKey(provider, key.wrappedValue) }
+                Button("Paste") {
+                    if let str = NSPasteboard.general.string(forType: .string) {
+                        let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        key.wrappedValue = trimmed
+                        saveKey(provider, trimmed)
+                    }
+                }
                 Button("Save") { saveKey(provider, key.wrappedValue) }
                     .disabled(key.wrappedValue.isEmpty)
                 Button {
@@ -185,12 +329,16 @@ struct PreferencesView: View {
             Label("Configured", systemImage: "checkmark.circle.fill")
                 .font(.caption).foregroundColor(.green)
         case .invalid:
-            Label("Invalid", systemImage: "xmark.circle.fill")
+            Label("Invalid key", systemImage: "xmark.circle.fill")
                 .font(.caption).foregroundColor(.red)
+        case .error(let msg):
+            Label(msg, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundColor(.orange)
+                .help(msg)
         case .notSet:
             if KeychainService.shared.getKey(provider: provider) != nil {
-                Label("Set", systemImage: "checkmark.circle")
-                    .font(.caption).foregroundColor(.secondary)
+                Label("Set", systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundColor(.green)
             } else {
                 Label("Not set", systemImage: "minus.circle")
                     .font(.caption).foregroundColor(Color(NSColor.tertiaryLabelColor))
@@ -264,11 +412,13 @@ struct PreferencesView: View {
     private func loadKeyStatuses() {
         if KeychainService.shared.getKey(provider: "anthropic") != nil { anthropicStatus = .notSet }
         if KeychainService.shared.getKey(provider: "openai") != nil { openAIStatus = .notSet }
+        if KeychainService.shared.getKey(provider: "gemini") != nil { geminiStatus = .notSet }
     }
 
     private func saveKey(_ provider: String, _ key: String) {
-        guard !key.isEmpty else { return }
-        KeychainService.shared.setKey(key, provider: provider)
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        KeychainService.shared.setKey(trimmed, provider: provider)
     }
 
     private func clearKey(_ provider: String, key: Binding<String>, status: Binding<KeyStatus>) {
@@ -286,8 +436,26 @@ struct PreferencesView: View {
                     statusBinding.wrappedValue = result.text.isEmpty ? .invalid : .configured
                     isTesting = false
                 }
+            } catch let err as RewriteError {
+                await MainActor.run {
+                    switch err {
+                    case .apiError(let code, let msg):
+                        if code == 401 || code == 403 {
+                            statusBinding.wrappedValue = .invalid
+                        } else {
+                            let short = String(msg.prefix(60))
+                            statusBinding.wrappedValue = .error("\(code): \(short)")
+                        }
+                    default:
+                        statusBinding.wrappedValue = .error(err.localizedDescription)
+                    }
+                    isTesting = false
+                }
             } catch {
-                await MainActor.run { statusBinding.wrappedValue = .invalid; isTesting = false }
+                await MainActor.run {
+                    statusBinding.wrappedValue = .error(String(error.localizedDescription.prefix(60)))
+                    isTesting = false
+                }
             }
         }
     }
@@ -339,10 +507,10 @@ private struct HotkeyRecorderView: NSViewRepresentable {
 // MARK: - Window controller
 
 @MainActor
-final class PreferencesWindowController {
+final class PreferencesWindowController: NSObject, NSWindowDelegate {
     static let shared = PreferencesWindowController()
     private var window: NSWindow?
-    private init() {}
+    private override init() {}
 
     func show() {
         if window == nil {
@@ -353,9 +521,18 @@ final class PreferencesWindowController {
             w.setContentSize(NSSize(width: 560, height: 360))
             w.center()
             w.setFrameAutosaveName("WisprPreferences")
+            w.delegate = self
             window = w
         }
-        window?.makeKeyAndOrderFront(nil)
+        // Promote to regular so the window receives keyboard focus (required for
+        // paste to work in an .accessory-policy menu bar app).
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // Return to accessory so the app stays out of the Dock and Cmd+Tab.
+        NSApp.setActivationPolicy(.accessory)
     }
 }

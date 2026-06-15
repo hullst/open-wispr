@@ -13,6 +13,10 @@ struct WisprRewrite: Codable, FetchableRecord, MutablePersistableRecord {
     var styleId: String?
     var latencyMs: Int
     var createdAt: Date
+    // the user's edited version of the rewrite, captured when he Copies/Pastes.
+    // nil = never opened for edit; == rewrittenText = accepted as-is; different =
+    // a real tweak (the compounding signal). See eval/harvest-edits.py.
+    var editedText: String?
 
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID

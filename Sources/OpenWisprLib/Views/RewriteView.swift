@@ -34,11 +34,24 @@ final class RewriteViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showDiff: Bool = false
     @Published var recentTranscripts: [Transcript] = []
+    @Published var rewrittenTranscriptIds: Set<Int64> = []
     @Published var selectedVariantIndex: Int? = nil
+    @Published var selectedModel: String = WisprDefaults.shared.defaultClaudeCodeModel
+    // The editable copy of the primary result the user can tweak before using.
+    @Published var editableOutput: String = ""
+    private var currentRewriteId: Int64? = nil
+    private var aiOriginal: String = ""
 
     var linterResult: LinterResult {
-        guard let v = primaryResult, !v.text.isEmpty else { return LinterResult(violations: []) }
-        return WisprLinter.check(v.text)
+        guard !editableOutput.isEmpty else { return LinterResult(violations: []) }
+        return WisprLinter.check(editableOutput)
+    }
+
+    // Save the user's edited version as the compounding signal. Called when he
+    // Copies or Pastes. Only writes when there's a real row to attach to.
+    func persistEditedOutput() {
+        guard let id = currentRewriteId else { return }
+        PersistenceContainer.shared.updateEditedText(id: id, editedText: editableOutput)
     }
 
     var configuredProviders: [(id: String, name: String)] {
@@ -54,7 +67,13 @@ final class RewriteViewModel: ObservableObject {
     }
 
     func loadRecents() {
-        recentTranscripts = PersistenceContainer.shared.allTranscripts(limit: 5)
+        recentTranscripts = PersistenceContainer.shared.allTranscripts(limit: 20)
+        rewrittenTranscriptIds = PersistenceContainer.shared.transcriptIdsWithRewrites()
+    }
+
+    func setModel(_ model: String) {
+        selectedModel = model
+        WisprDefaults.shared.defaultClaudeCodeModel = model
     }
 
     func prefill(text: String) {
@@ -80,6 +99,9 @@ final class RewriteViewModel: ObservableObject {
             variants = []
             showDiff = false
             selectedVariantIndex = nil
+            editableOutput = ""
+            currentRewriteId = nil
+            aiOriginal = ""
         }
     }
 
@@ -117,11 +139,17 @@ final class RewriteViewModel: ObservableObject {
                     v.sourceText = source
                     v.latencyMs = result.latencyMs
                     v.isLoading = false
+                    self.aiOriginal = result.text
+                    self.editableOutput = result.text
+                    self.currentRewriteId = result.rewriteId
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         self.primaryResult = v
                         self.mode = .result
                     }
                     if WisprDefaults.shared.autoPasteRewrites { self.paste(result.text) }
+                    // Refresh recents so the just-rewritten dictation flips from the
+                    // mic icon to the rewrite badge without a manual refresh.
+                    self.loadRecents()
                 }
             } catch {
                 guard !Task.isCancelled else { return }
@@ -169,6 +197,7 @@ final class RewriteViewModel: ObservableObject {
                             self.variants[i].latencyMs = result.latencyMs
                             self.variants[i].isLoading = false
                         }
+                        self.loadRecents()
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
@@ -192,6 +221,47 @@ final class RewriteViewModel: ObservableObject {
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    // Clicking a recent dictation shows the saved rewrite for it -- the user's
+    // edited version if he tweaked it, otherwise the model's recommendation --
+    // instead of dumping the raw transcript back into the input. Falls back to
+    // prefilling the input if that dictation was never rewritten.
+    func showSavedRewrite(for transcript: Transcript) {
+        activeTasks.forEach { $0.cancel() }
+        activeTasks = []
+        errorMessage = nil
+        sourceText = transcript.text
+
+        guard let tid = transcript.id,
+              let last = PersistenceContainer.shared.rewrites(for: tid).last else {
+            // No saved rewrite -- just load the text so he can rewrite it fresh.
+            withAnimation(.easeOut(duration: 0.15)) {
+                mode = .idle
+                primaryResult = nil
+                variants = []
+                editableOutput = ""
+                currentRewriteId = nil
+            }
+            return
+        }
+
+        let saved = (last.editedText?.isEmpty == false) ? last.editedText! : last.rewrittenText
+        var v = RewriteVariant(index: 0)
+        v.text = saved
+        v.sourceText = transcript.text
+        v.latencyMs = last.latencyMs
+        v.isLoading = false
+        aiOriginal = last.rewrittenText
+        editableOutput = saved
+        currentRewriteId = last.id
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            variants = []
+            selectedVariantIndex = nil
+            showDiff = false
+            primaryResult = v
+            mode = .result
+        }
     }
 }
 
@@ -276,19 +346,15 @@ struct RewriteView: View {
     // MARK: Controls
 
     private var controlsRow: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 14) {
             Picker("", selection: $vm.selectedLengthId) {
                 Text("Short").tag("shorten")
                 Text("Same").tag("same")
                 Text("Long").tag("expand")
             }
             .pickerStyle(.segmented)
-            .frame(width: 148)
+            .fixedSize()
             .labelsHidden()
-
-            Spacer().frame(width: 10)
-            Color(NSColor.separatorColor).frame(width: 0.5, height: 18)
-            Spacer().frame(width: 10)
 
             Picker("", selection: $vm.selectedStyleId) {
                 Text("Everyday").tag("everyday")
@@ -296,8 +362,21 @@ struct RewriteView: View {
                 Text("Co-wide").tag("companywide")
             }
             .pickerStyle(.segmented)
-            .frame(width: 172)
+            .fixedSize()
             .labelsHidden()
+
+            if vm.selectedProviderId == "claude-code" {
+                Menu {
+                    Button("Opus — best") { vm.setModel("opus") }
+                    Button("Sonnet — faster") { vm.setModel("sonnet") }
+                } label: {
+                    Text(vm.selectedModel == "opus" ? "Opus" : "Sonnet")
+                        .font(Type.control)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Model for the rewrite")
+            }
 
             Spacer()
 
@@ -370,13 +449,16 @@ struct RewriteView: View {
                 }
             }
 
-            // Result text box with accentSoft background
+            // Editable result box — the user can tweak before using; the edit is
+            // captured as the compounding signal on Copy/Paste.
             VStack(alignment: .leading, spacing: 10) {
-                Text(v.text)
+                TextEditor(text: $vm.editableOutput)
                     .font(Type.output)
                     .lineSpacing(6)
                     .foregroundColor(Theme.text)
-                    .textSelection(.enabled)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(minHeight: 132)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 // AI linter warning
@@ -404,18 +486,20 @@ struct RewriteView: View {
 
             // Action row
             HStack(spacing: 8) {
-                Button("Copy") { vm.copy(v.text) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .font(Type.control)
-
-                Button("Paste") { vm.paste(v.text) }
+                Button("Copy") { vm.copy(vm.editableOutput); vm.persistEditedOutput() }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.accent)
                     .controlSize(.small)
                     .font(Type.control)
+                    .keyboardShortcut(.return, modifiers: [.command])
+                    .help("Copy the rewrite to the clipboard (⌘↩)")
+
+                Button("Insert") { vm.paste(vm.editableOutput); vm.persistEditedOutput() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .font(Type.control)
                     .keyboardShortcut(.return, modifiers: [.command, .shift])
-                    .help("⌘⇧↩")
+                    .help("Insert into the app you were typing in (⌘⇧↩)")
 
                 Button("Variants") { vm.getVariants() }
                     .buttonStyle(.bordered)
@@ -437,7 +521,7 @@ struct RewriteView: View {
 
             // Diff view
             if vm.showDiff, !v.sourceText.isEmpty {
-                let tokens = WordDiff.diff(original: v.sourceText, rewritten: v.text)
+                let tokens = WordDiff.diff(original: v.sourceText, rewritten: vm.editableOutput)
                 Text(WordDiff.attributedString(from: tokens))
                     .font(Type.mono)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -566,34 +650,53 @@ struct RewriteView: View {
 
             Divider()
 
-            ForEach(vm.recentTranscripts.prefix(4)) { t in
-                Button {
-                    withAnimation(.easeOut(duration: 0.12)) { vm.sourceText = t.text }
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(Theme.text3)
-                            .frame(width: 12)
-                        Text(t.text)
-                            .font(Type.body)
-                            .lineLimit(1)
-                            .foregroundColor(Theme.text)
-                        Spacer()
-                        Text(relativeTime(t.createdAt))
-                            .font(Type.mono)
-                            .foregroundColor(Theme.text3)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(vm.recentTranscripts) { t in
+                        recentRow(t)
+                        if t.id != vm.recentTranscripts.last?.id {
+                            Divider().padding(.leading, 44)
+                        }
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if t.id != vm.recentTranscripts.prefix(4).last?.id {
-                    Divider().padding(.leading, 44)
                 }
             }
+            .frame(maxHeight: 220)
         }
+    }
+
+    @ViewBuilder
+    private func recentRow(_ t: Transcript) -> some View {
+        let rewritten = t.id.map { vm.rewrittenTranscriptIds.contains($0) } ?? false
+        Button {
+            vm.showSavedRewrite(for: t)
+        } label: {
+            HStack(spacing: 10) {
+                // Icon distinguishes a rewritten dictation from a transcription-only one.
+                Image(systemName: rewritten ? "sparkles" : "mic.fill")
+                    .font(.system(size: rewritten ? 10 : 9))
+                    .foregroundColor(rewritten ? Theme.accent : Theme.text3)
+                    .frame(width: 14)
+                    .help(rewritten ? "Rewritten — click to see the saved rewrite"
+                                    : "Transcription only — click to rewrite")
+                Text(t.text)
+                    .font(Type.body)
+                    .lineLimit(1)
+                    .foregroundColor(Theme.text)
+                Spacer()
+                if rewritten {
+                    Text("rewritten")
+                        .font(Type.badge)
+                        .foregroundColor(Theme.accent)
+                }
+                Text(relativeTime(t.createdAt))
+                    .font(Type.mono)
+                    .foregroundColor(Theme.text3)
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func relativeTime(_ date: Date) -> String {
