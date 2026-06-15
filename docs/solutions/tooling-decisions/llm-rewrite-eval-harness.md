@@ -33,7 +33,7 @@ tags:
 
 ## Context
 
-Model selection for the Wispr rewrite pipeline was ad-hoc. The app uses a ~900-token system prompt encoding Stephen's writing style rules (`StylePresets.swift`), served to Ollama local models (default: `gemma2:9b`). A known quality regression — gemma2 reassigning attribution (e.g., "they/Yogi-and-James sent the code" becoming "Amit sent the code") — had no reproducible test harness. There was no way to systematically compare models, validate a prompt change, or confirm whether a newly pulled model regressed or improved on specific voice rules.
+Model selection for the Wispr rewrite pipeline was ad-hoc. The app uses a ~900-token system prompt encoding the user's writing style rules (`StylePresets.swift`), served to Ollama local models (default: `gemma2:9b`). A known quality regression — gemma2 reassigning attribution (e.g., "they/Yogi-and-James sent the code" becoming "Amit sent the code") — had no reproducible test harness. There was no way to systematically compare models, validate a prompt change, or confirm whether a newly pulled model regressed or improved on specific voice rules.
 
 Small 8B models degrade on instruction adherence when context is dense. Without a harness, the degradation was anecdotal — visible in production outputs but impossible to quantify or compare.
 
@@ -98,7 +98,7 @@ If the system prompt changes (`StylePresets.swift`), re-run the full corpus agai
 - llama3.1:8b: 7/12 auto-pass, ~4s/case
 - Universal failure across all three: numbers-as-words rule on number-heavy inputs
 
-Next benchmark targets: `gemma3:12b` (~8GB, better instruction adherence), `mistral-nemo:12b` (~7GB, strong at complex rule sets), Claude Haiku via `AnthropicProvider` (already plumbed in — quality ceiling reference).
+**2026-06-06 update:** phi4:14b (8/12, 7.2s avg) is the settled default. See `docs/solutions/tooling-decisions/ollama-model-selection-mac-mini.md` for hardware constraints (70B models crash Mac Mini) and model cleanup guidance. Claude Haiku via `AnthropicProvider` (already plumbed in) remains the quality ceiling reference if needed.
 
 ## When to Apply
 
@@ -125,8 +125,8 @@ Then: `python3 eval/run.py gemma2:9b --cases regression-2026-06-05`
 
 **Switch the default model** after a winning eval:
 ```swift
-// OllamaProvider.swift
-init(selectedModel: String = "gemma3:12b") {  // was gemma2:9b
+// Sources/OpenWisprLib/WisprDefaults.swift, line 31
+get { defaults.string(forKey: "defaultOllamaModel") ?? "phi4:14b" }  // was gemma2:9b
 ```
 
 **What to look for in human scoring:**

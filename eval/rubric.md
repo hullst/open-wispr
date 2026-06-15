@@ -38,11 +38,11 @@ Did the rewrite preserve exactly what was said — including WHO did WHAT?
 ---
 
 ### Voice (1–5)
-Does it sound like Stephen wrote it — not like a cleaned-up chatbot output?
+Does it sound like the user wrote it — not like a cleaned-up chatbot output?
 
 | Score | Voice |
 |-------|-------|
-| 5 | Indistinguishable from Stephen's actual writing. Signature devices feel natural. |
+| 5 | Indistinguishable from the user's actual writing. Signature devices feel natural. |
 | 4 | Sounds right, maybe one word or phrase feels slightly generic. |
 | 3 | Competent but generic. Could be anyone's professional email. |
 | 2 | Noticeably AI-shaped: too smooth, too structured, corporate tone. |

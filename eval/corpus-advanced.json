@@ -1,0 +1,82 @@
+[
+  {
+    "id": "decline-up-01",
+    "category": "judgment",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Declining the boss's request to pull someone onto a fire. Must hold the line without reading as insubordinate or as a grovel. Should give a reason and an alternative, not just 'no'. Hard for weak models -- they cave or over-apologize.",
+    "input": "So uh I got your note about pulling Priya onto the outage bridge, and look I hear you that it's hot, but honestly she's the only one who knows the billing reconciliation code and if I move her we miss the close on Thursday which is the thing finance is already breathing down our necks about, so I'd really rather not, maybe we grab Marcus instead he's got bandwidth."
+  },
+  {
+    "id": "bad-news-up-02",
+    "category": "judgment",
+    "style": "companywide",
+    "length": "same",
+    "notes": "Telling an SVP a launch slipped. Must own his team's part at full size AND name the external blocker without it sounding like an excuse. Lead with the news. The hardest balance in exec comms -- accountability without self-flagellation.",
+    "input": "ok so this is the email to Dana about the launch, basically we're not going to make the 30th, part of it is on us we underestimated the load testing and that took an extra week, but the bigger piece is the vendor still hasn't delivered the SSO integration and they've slipped twice now, realistic date is the 14th, I want to be straight with her about both parts."
+  },
+  {
+    "id": "brain-dump-01",
+    "category": "synthesis",
+    "style": "everyday",
+    "length": "shorten",
+    "notes": "The REAL voice-to-text case: 200+ words of stream of consciousness that must become a tight, skimmable update. Tests synthesis under compression. Must preserve: the 3 workstreams, the one real blocker, the decision needed. Weak models either lose threads or keep the rambling structure.",
+    "input": "Alright so where are we, um, the migration is going fine actually, we're like 70 percent through the table moves and Sandeep's team has been crushing it, no concerns there. The thing I'm worried about is the cutover window, because we originally said we'd do it over the long weekend but now legal is saying we need a 30 day customer notice and we didn't start that clock, so that pushes us. And then separately the monitoring dashboards aren't ready, Kevin's been out sick so that just hasn't moved, it's not blocking but it's a risk if something goes sideways during cutover and we're flying blind. So I think the real question I need the team to decide is do we hold the original window and rush the legal notice, or do we slip to the following month and do it clean, and honestly I'm leaning slip but I want to hear the room."
+  },
+  {
+    "id": "peer-deescalate-01",
+    "category": "judgment",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Responding to a peer who's frustrated and a little accusatory. Must de-escalate without caving, acknowledge their point, hold his position calmly. Weak models either get defensive or capitulate entirely.",
+    "input": "yeah I want to respond to Tom's message where he's basically saying my team blocked his release, and I get that he's frustrated but that's not what happened, we flagged the schema risk three weeks ago in the design review and nobody picked it up, so I don't want to throw it back in his face but I also am not going to eat this one, I want to be calm about it but clear that we raised it early."
+  },
+  {
+    "id": "feedback-down-01",
+    "category": "judgment",
+    "style": "everyday",
+    "length": "same",
+    "notes": "Direct feedback to a report who missed expectations. Firm but not harsh, specific not vague, ends with a path forward. Tests warmth-with-spine. Weak models go either mushy or cold.",
+    "input": "ok so I need to talk to Jordan about the incident, like the technical fix was fine but the communication was the problem, he went dark for like two hours during a sev1 and the stakeholders were freaking out and pinging me because nobody knew what was happening, and I don't want to crush him because he's junior and he actually fixed it, but he has to understand that during an incident the updates matter as much as the fix, even just a one line every 15 minutes."
+  },
+  {
+    "id": "hold-the-line-01",
+    "category": "judgment",
+    "style": "companywide",
+    "length": "same",
+    "notes": "Disagreeing in writing with a louder, more senior exec who wants to ship now. Must register dissent with authority, not aggression, and ground it in a concrete risk. The 'calm conviction' test.",
+    "input": "so this is me pushing back on the steering committee thread where everyone's excited to ship the AI feature next week, and I'm the lone voice saying hold on, we haven't done any red teaming on the prompt injection surface and this thing has access to customer data, so if someone jailbreaks it we've got a real incident, I'm not saying never I'm saying two weeks to do this right, and I need to say it in a way that doesn't sound like I'm being the blocker but that people actually take seriously."
+  },
+  {
+    "id": "no-answer-yet-01",
+    "category": "judgment",
+    "style": "chat",
+    "length": "same",
+    "notes": "Holding response when he genuinely doesn't know yet. Must sound in-control and give a when, not evasive or hand-wavy. Weak models either over-promise or sound like they're dodging.",
+    "input": "uh someone's asking me in the channel whether the Q3 numbers are going to hit and honestly I don't know yet, the pipeline data is still settling and I won't have a real read until the forecast review on Friday, but I don't want to say 'I don't know' and look out of control, I want to say I'll have a real answer Friday."
+  },
+  {
+    "id": "scope-cut-01",
+    "category": "judgment",
+    "style": "companywide",
+    "length": "same",
+    "notes": "Telling stakeholders he's cutting scope. Must frame as a decision (with rationale), not an apology. Lead with what's changing. Tests whether the model can sound like a leader making a call vs a vendor apologizing.",
+    "input": "ok announcement to the stakeholders that we're cutting the advanced reporting module from the v1 release, the reason is we looked at the data and like 80 percent of the value is in the core dashboards and the reporting stuff is going to eat another six weeks for maybe 20 percent more value, so we're shipping core on time and reporting comes in v1.1, I want this to land as a smart tradeoff not as us failing to deliver."
+  },
+  {
+    "id": "credit-and-correct-01",
+    "category": "judgment",
+    "style": "everyday",
+    "length": "same",
+    "notes": "One message that must both praise the team for shipping AND correct a real process miss (skipped the staging soak). Tests holding two tones at once without one undercutting the other.",
+    "input": "team message about the launch, so first off genuinely great work everybody pulled together and we shipped a hard thing on time, but I do need to call out one thing for next time, we skipped the staging soak to make the date and it worked out this time but that was a real risk and we got a little lucky, so I want to celebrate the win but also make sure we don't make skipping the soak a habit."
+  },
+  {
+    "id": "multi-thread-01",
+    "category": "synthesis",
+    "style": "everyday",
+    "length": "same",
+    "notes": "A single message that has to do three jobs: give a status, make an ask, and flag a heads-up -- without becoming a wall of text. Tests structure under load. Weak models either bury one of the three or run it all together.",
+    "input": "ok message to the team, couple things, one the auth migration is done and in prod and stable so that's behind us finally, two I need someone to own the runbook update by end of week because ours is now out of date and I don't want to find that out during the next incident, and three heads up that the infra team is doing maintenance on the primary database Saturday night so if you're on call this weekend know that going in."
+  }
+]

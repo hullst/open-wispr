@@ -1,6 +1,6 @@
 # Dictation + Rewriter Merge — Spec
 
-**Stephen Hull · 2026-06-05**
+**the author · 2026-06-05**
 
 A consolidated brief for merging two existing apps — the **OpenWispr fork** (Swift, native dictation) and **VP Rewriter** (Electron, semantic rewriter) — into a **single native Swift macOS app** called **Wispr**.
 
@@ -10,7 +10,7 @@ End-state goal: one always-on menu-bar app that handles dictation, transcription
 
 ## Why this exists
 
-Two separate apps today, both built by Stephen with Claude help:
+Two separate apps today, both built by the user with Claude help:
 
 - **OpenWispr fork** — Swift, native macOS, menu bar app. Hold Globe key → records → whisper.cpp (Metal) transcribes → types at cursor. Recent work added a live waveform pill overlay.
 - **VP Rewriter** — Electron 35 + Node, runs an HTTP server on localhost:3002, SQLite history, Ollama (`gemma2:9b`) for local rewriting, Cmd+Shift+Space hotkey, has a built .dmg.
@@ -29,7 +29,7 @@ They solve adjacent problems and the user shouldn't have to run two apps. Native
 - Native macOS app, menu bar, whisper.cpp + Metal
 - Hold-Globe-key dictation that types at cursor
 - Git remotes:
-  - `fork` → `https://github.com/hullst/open-wispr.git` (Stephen's fork — push here)
+  - `fork` → `https://github.com/hullst/open-wispr.git` (the user's fork — push here)
   - `origin` → `https://github.com/human37/open-wispr.git` (upstream — don't push)
 
 ### VP Rewriter (port relevant code from this; retire afterwards)
@@ -103,6 +103,6 @@ See CHANGELOG.md `[Unreleased]` section for what is done. Phases below are the f
 
 ## Philosophy
 
-Voice preservation matters more than polish. When Stephen dictates and asks for a rewrite, the result should still sound like Stephen — just clearer. If a model or prompt makes the output sound like AI, that's a regression.
+Voice preservation matters more than polish. When the user dictates and asks for a rewrite, the result should still sound like the user — just clearer. If a model or prompt makes the output sound like AI, that's a regression.
 
 Always on, always works, feels native, gets out of the way.

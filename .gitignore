@@ -9,4 +9,7 @@
 .vscode/
 docs/superpowers/
 .worktrees/
-REBUILD
+eval/__pycache__/
+*.pyc
+scripts/setup-signing.sh
+.claude/settings.json

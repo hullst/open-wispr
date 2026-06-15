@@ -1,6 +1,6 @@
 # CLAUDE.md — Wispr
 
-Stephen Hull's always-on dictation + rewrite tool. Native Swift macOS app. Hold Globe key to dictate; use the rewrite sheet or silent hotkey to clean up prose in Stephen's voice.
+the author's always-on dictation + rewrite tool. Native Swift macOS app. Hold Globe key to dictate; use the rewrite sheet or silent hotkey to clean up prose in the user's voice.
 
 Part of the larger backup architecture at **~/Documents/Claude/CLAUDE.md** — read that first.
 
@@ -19,13 +19,13 @@ See `docs/MERGE_SPEC.md` for the full architecture brief.
 ## Don't break
 
 - **Depends on Ollama running locally** (`http://localhost:11434`). Ollama is on internal SSD as of 2026-06-05. Don't bundle it; it's shared infrastructure.
-- **Globe-key dictation is the primary UX.** Any change to `HotkeyManager`, `AudioRecorder`, or `TextInserter` needs careful testing — this is what Stephen uses every hour.
-- **Voice preservation is the #1 prompt requirement.** The style presets in `Sources/OpenWisprLib/StylePresets.swift` encode Stephen's voice rules. Do not simplify or generalize them.
+- **Globe-key dictation is the primary UX.** Any change to `HotkeyManager`, `AudioRecorder`, or `TextInserter` needs careful testing — this is what the user uses every hour.
+- **Voice preservation is the #1 prompt requirement.** The style presets in `Sources/OpenWisprLib/StylePresets.swift` encode the user's voice rules. Do not simplify or generalize them.
 - **API keys live in Keychain only.** Service: `com.hull.wispr`. Never write keys to UserDefaults, plist, or source.
 
 ## Don't delete
 
-- Move unwanted files to `_trash/` for Stephen to review.
+- Move unwanted files to `_trash/` for the user to review.
 - Never delete files matching `*MASTER*` in Backups/.
 
 ## Don't commit
