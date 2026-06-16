@@ -11,6 +11,10 @@ public struct Config: Codable {
     public var modelSize: String
     public var language: String
     public var spokenPunctuation: FlexBool?
+    /// When true, TextPolisher also strips the ambiguous filler *words* (like,
+    /// actually, …). Pure disfluencies (um, uh) are always removed regardless.
+    /// Off by default so ordinary English is never silently rewritten.
+    public var removeFillers: FlexBool?
     public var maxRecordings: Int?
     public var toggleMode: FlexBool?
     public var audioInputDeviceID: UInt32?
@@ -45,6 +49,7 @@ public struct Config: Codable {
         case modelSize
         case language
         case spokenPunctuation
+        case removeFillers
         case maxRecordings
         case toggleMode
         case audioInputDeviceID
@@ -66,6 +71,7 @@ public struct Config: Codable {
         self.modelSize = try c.decode(String.self, forKey: .modelSize)
         self.language = try c.decode(String.self, forKey: .language)
         self.spokenPunctuation = try c.decodeIfPresent(FlexBool.self, forKey: .spokenPunctuation)
+        self.removeFillers = try c.decodeIfPresent(FlexBool.self, forKey: .removeFillers)
         self.maxRecordings = try c.decodeIfPresent(Int.self, forKey: .maxRecordings)
         self.toggleMode = try c.decodeIfPresent(FlexBool.self, forKey: .toggleMode)
         self.audioInputDeviceID = try c.decodeIfPresent(UInt32.self, forKey: .audioInputDeviceID)
@@ -80,6 +86,7 @@ public struct Config: Codable {
         try c.encode(modelSize, forKey: .modelSize)
         try c.encode(language, forKey: .language)
         try c.encodeIfPresent(spokenPunctuation, forKey: .spokenPunctuation)
+        try c.encodeIfPresent(removeFillers, forKey: .removeFillers)
         try c.encodeIfPresent(maxRecordings, forKey: .maxRecordings)
         try c.encodeIfPresent(toggleMode, forKey: .toggleMode)
         try c.encodeIfPresent(audioInputDeviceID, forKey: .audioInputDeviceID)
@@ -94,6 +101,7 @@ public struct Config: Codable {
         spokenPunctuation: FlexBool?,
         maxRecordings: Int?,
         toggleMode: FlexBool?,
+        removeFillers: FlexBool? = nil,
         audioInputDeviceID: UInt32? = nil
     ) {
         self.hotkeys = hotkeys.isEmpty
@@ -103,6 +111,7 @@ public struct Config: Codable {
         self.modelSize = modelSize
         self.language = language
         self.spokenPunctuation = spokenPunctuation
+        self.removeFillers = removeFillers
         self.maxRecordings = maxRecordings
         self.toggleMode = toggleMode
         self.audioInputDeviceID = audioInputDeviceID
@@ -251,7 +260,8 @@ public struct Config: Codable {
         language: "en",
         spokenPunctuation: FlexBool(false),
         maxRecordings: nil,
-        toggleMode: FlexBool(false)
+        toggleMode: FlexBool(false),
+        removeFillers: FlexBool(false)
     )
 
     public static var configDir: URL {

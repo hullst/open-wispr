@@ -4,10 +4,17 @@ import Foundation
 /// before it gets pasted. No AI, no network.
 ///
 /// Pipeline:
-///   1. Voice commands  — "new line" → "\n" etc.
-///   2. Filler removal  — um / uh / like / you know …
-///   3. Spacing         — collapse double spaces, fix space-before-punctuation
-///   4. Capitalization  — sentence starts + standalone "i"
+///   1. Voice commands  — "new line" → "\n" etc.   (opt-in, gated by caller)
+///   2. Disfluencies    — um / uh / erm …          (always; never real words)
+///   3. Filler words    — like / actually / you know … (opt-in)
+///   4. Spacing         — collapse double spaces, fix space-before-punctuation
+///   5. Capitalization  — sentence starts + standalone "i"
+///
+/// Filler removal is split in two. Pure hesitation sounds (um, uh) carry no
+/// meaning and are always stripped. The second group are ordinary English
+/// words ("like", "actually") whose removal can change meaning, so it is
+/// opt-in — never applied unless the caller asks. Voice commands duplicate
+/// `TextPostProcessor` and follow the same `spokenPunctuation` gate.
 public enum TextPolisher {
 
     // MARK: - Defaults
@@ -32,18 +39,35 @@ public enum TextPolisher {
         ("hyphen", "-"),
     ]
 
-    static let fillers: [String] = [
+    /// Pure hesitation sounds. Never meaningful words, so always safe to strip.
+    static let disfluencies: [String] = [
+        "um", "uh", "uhh", "umm", "erm",
+    ]
+
+    /// Conversational fillers that are also ordinary English words ("like",
+    /// "actually") or carry meaning ("ah", "i mean"). Whole-word removal here
+    /// can mangle real prose, so it is opt-in via the `removeFillers` flag.
+    static let fillerWords: [String] = [
         "you know", "i mean", "sort of", "kind of", "i guess", "or whatever",
-        "you see", "um", "uh", "uhh", "umm", "erm", "ah",
-        "like", "basically", "literally", "actually",
+        "you see", "ah", "like", "basically", "literally", "actually",
     ]
 
     // MARK: - Public entry point
 
-    public static func polish(_ text: String) -> String {
+    /// - Parameters:
+    ///   - voiceCommands: substitute "comma" → "," etc. Pass the same value as
+    ///     the `spokenPunctuation` setting so this can't bypass that gate.
+    ///   - removeFillers: also strip the ambiguous filler *words* (like,
+    ///     actually, …). Pure disfluencies (um, uh) are always removed.
+    public static func polish(
+        _ text: String,
+        voiceCommands: Bool = false,
+        removeFillers: Bool = false
+    ) -> String {
         var s = text
-        s = applyVoiceCommands(s)
-        s = removeFillers(s)
+        if voiceCommands { s = applyVoiceCommands(s) }
+        s = strip(disfluencies, from: s)
+        if removeFillers { s = strip(fillerWords, from: s) }
         s = fixSpacing(s)
         s = fixCapitalization(s)
         return s
@@ -60,9 +84,9 @@ public enum TextPolisher {
         return s
     }
 
-    private static func removeFillers(_ text: String) -> String {
+    private static func strip(_ words: [String], from text: String) -> String {
         var s = text
-        for filler in fillers.sorted(by: { $0.count > $1.count }) {
+        for filler in words.sorted(by: { $0.count > $1.count }) {
             // whole word/phrase, optionally followed by a comma
             let pat = "(?i)(?<!\\w)\(NSRegularExpression.escapedPattern(for: filler))(?!\\w),?"
             if let re = try? NSRegularExpression(pattern: pat) {

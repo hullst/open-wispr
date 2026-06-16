@@ -402,13 +402,18 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             }
             do {
                 let raw = try self.transcriber.transcribe(audioURL: audioURL)
-                let text = (self.config.spokenPunctuation?.value ?? false) ? TextPostProcessor.process(raw) : raw
+                let spokenPunctuation = self.config.spokenPunctuation?.value ?? false
+                let text = spokenPunctuation ? TextPostProcessor.process(raw) : raw
                 if maxRecordings > 0 {
                     RecordingStore.prune(maxCount: maxRecordings)
                 }
                 DispatchQueue.main.async {
                     if !text.isEmpty {
-                        let polished = TextPolisher.polish(text)
+                        let polished = TextPolisher.polish(
+                            text,
+                            voiceCommands: spokenPunctuation,
+                            removeFillers: self.config.removeFillers?.value ?? false
+                        )
                         self.lastTranscription = polished
                         PersistenceContainer.shared.insertTranscript(text: polished, source: "dictation")
                         if RewritePanel.shared.isKeyWindow {
