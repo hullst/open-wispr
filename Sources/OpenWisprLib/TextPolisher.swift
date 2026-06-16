@@ -4,10 +4,16 @@ import Foundation
 /// before it gets pasted. No AI, no network.
 ///
 /// Pipeline:
-///   1. Voice commands  — "new line" → "\n" etc.
-///   2. Filler removal  — um / uh / like / you know …
+///   1. Voice commands  — "new line" → "\n" etc.   (opt-in)
+///   2. Filler removal  — um / uh / like / you know … (opt-in)
 ///   3. Spacing         — collapse double spaces, fix space-before-punctuation
 ///   4. Capitalization  — sentence starts + standalone "i"
+///
+/// Steps 1 and 2 are off by default and gated by the caller. Voice commands
+/// duplicate `TextPostProcessor` and must follow the same `spokenPunctuation`
+/// gate, or "comma" gets substituted for users who turned that off. Filler
+/// removal matches ordinary English words ("like", "actually", …) so it can
+/// never run unconditionally. Spacing and capitalization are always safe.
 public enum TextPolisher {
 
     // MARK: - Defaults
@@ -40,10 +46,19 @@ public enum TextPolisher {
 
     // MARK: - Public entry point
 
-    public static func polish(_ text: String) -> String {
+    /// - Parameters:
+    ///   - voiceCommands: substitute "comma" → "," etc. Pass the same value as
+    ///     the `spokenPunctuation` setting so this can't bypass that gate.
+    ///   - removeFillers: strip disfluencies/fillers. Off by default because the
+    ///     list includes ordinary English words.
+    public static func polish(
+        _ text: String,
+        voiceCommands: Bool = false,
+        removeFillers: Bool = false
+    ) -> String {
         var s = text
-        s = applyVoiceCommands(s)
-        s = removeFillers(s)
+        if voiceCommands { s = applyVoiceCommands(s) }
+        if removeFillers { s = removeFillerWords(s) }
         s = fixSpacing(s)
         s = fixCapitalization(s)
         return s
@@ -60,7 +75,7 @@ public enum TextPolisher {
         return s
     }
 
-    private static func removeFillers(_ text: String) -> String {
+    private static func removeFillerWords(_ text: String) -> String {
         var s = text
         for filler in fillers.sorted(by: { $0.count > $1.count }) {
             // whole word/phrase, optionally followed by a comma
