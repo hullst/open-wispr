@@ -25,9 +25,14 @@ struct PreferencesView: View {
     @State private var exportMessage: String? = nil
     @State private var hotkeyCombo: RewriteHotkeyManager.HotkeyCombo? = RewriteHotkeyManager.HotkeyCombo.load()
     @State private var isRecordingHotkey = false
+    @State private var convertNumbers: Bool = true
+    @State private var removeFillers: Bool = false
+    @State private var spokenPunctuation: Bool = false
+    @State private var dictEntries: [DictEntry] = []
 
     enum Section: String, CaseIterable {
         case general = "General"
+        case dictation = "Dictation"
         case rewriter = "Rewriter"
         case voice = "Voice"
         case apiKeys = "API Keys"
@@ -36,12 +41,20 @@ struct PreferencesView: View {
         var icon: String {
             switch self {
             case .general: return "gear"
+            case .dictation: return "textformat.abc"
             case .rewriter: return "pencil.and.sparkles"
             case .voice: return "person.wave.2"
             case .apiKeys: return "key"
             case .hotkeys: return "keyboard"
             }
         }
+    }
+
+    /// One personal-dictionary row, identifiable so SwiftUI can bind text fields.
+    struct DictEntry: Identifiable, Equatable {
+        let id = UUID()
+        var from: String
+        var to: String
     }
 
     enum KeyStatus { case notSet, configured, invalid, error(String) }
@@ -72,6 +85,7 @@ struct PreferencesView: View {
                 Group {
                     switch selection {
                     case .general:   generalSection
+                    case .dictation: dictationSection
                     case .rewriter:  rewriterSection
                     case .voice:     voiceSection
                     case .apiKeys:   apiKeysSection
@@ -82,7 +96,7 @@ struct PreferencesView: View {
             }
         }
         .frame(width: 560, height: 360)
-        .onAppear { loadKeyStatuses() }
+        .onAppear { loadKeyStatuses(); loadDictationConfig() }
     }
 
     // MARK: General
@@ -100,6 +114,91 @@ struct PreferencesView: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .padding(.top, 4)
+    }
+
+    // MARK: Dictation
+
+    private var dictationSection: some View {
+        Form {
+            SwiftUI.Section {
+                Toggle("Convert spoken numbers to digits", isOn: $convertNumbers)
+                    .onChange(of: convertNumbers) { _ in persistDictation() }
+                Toggle("Remove filler words", isOn: $removeFillers)
+                    .onChange(of: removeFillers) { _ in persistDictation() }
+                Toggle("Spoken punctuation", isOn: $spokenPunctuation)
+                    .onChange(of: spokenPunctuation) { _ in persistDictation() }
+            } footer: {
+                Text("Numbers: \u{201C}twenty three\u{201D} \u{2192} 23, idiom-guarded. Fillers: strips \u{201C}like / actually\u{201D}; \u{201C}um / uh\u{201D} are always removed. Punctuation: say \u{201C}comma\u{201D}, \u{201C}period\u{201D}.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+
+            SwiftUI.Section {
+                if dictEntries.isEmpty {
+                    Text("No entries yet.").foregroundColor(.secondary)
+                }
+                ForEach($dictEntries) { $entry in
+                    HStack(spacing: 8) {
+                        TextField("heard as\u{2026}", text: $entry.from)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { persistDictation() }
+                        Image(systemName: "arrow.right").font(.caption).foregroundColor(.secondary)
+                        TextField("replace with\u{2026}", text: $entry.to)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { persistDictation() }
+                        Button(role: .destructive) {
+                            dictEntries.removeAll { $0.id == entry.id }
+                            persistDictation()
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove this entry")
+                    }
+                }
+                Button {
+                    dictEntries.append(DictEntry(from: "", to: ""))
+                } label: {
+                    Label("Add entry", systemImage: "plus")
+                }
+                .buttonStyle(.borderless)
+            } header: {
+                Text("Personal dictionary")
+            } footer: {
+                Text("Whole-word, case-insensitive replacement applied to every dictation. It\u{2019}s literal \u{2014} it can\u{2019}t tell meaning apart, so map distinctive mishearings (\u{201C}carrie\u{201D} \u{2192} \u{201C}Keri\u{201D}), not everyday words like \u{201C}carry\u{201D}.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding(.top, 4)
+        .onDisappear { persistDictation() }
+    }
+
+    private func loadDictationConfig() {
+        let cfg = Config.load()
+        convertNumbers = cfg.convertNumbers?.value ?? true
+        removeFillers = cfg.removeFillers?.value ?? false
+        spokenPunctuation = cfg.spokenPunctuation?.value ?? false
+        dictEntries = (cfg.dictionary ?? [:])
+            .sorted { $0.key < $1.key }
+            .map { DictEntry(from: $0.key, to: $0.value) }
+    }
+
+    /// Persist the dictation settings back into config.json, preserving every
+    /// other field, then ask the running app to reload so changes apply live.
+    private func persistDictation() {
+        var cfg = Config.load()
+        cfg.convertNumbers = FlexBool(convertNumbers)
+        cfg.removeFillers = FlexBool(removeFillers)
+        cfg.spokenPunctuation = FlexBool(spokenPunctuation)
+        var map: [String: String] = [:]
+        for entry in dictEntries {
+            let key = entry.from.trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = entry.to.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !key.isEmpty, !value.isEmpty { map[key] = value }
+        }
+        cfg.dictionary = map.isEmpty ? nil : map
+        try? cfg.save()
+        (NSApplication.shared.delegate as? AppDelegate)?.reloadConfig()
     }
 
     // MARK: Rewriter
