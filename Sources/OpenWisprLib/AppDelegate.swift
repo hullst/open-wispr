@@ -15,6 +15,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingStartTime: Date?
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        installEditMenu()
         statusBar = StatusBarController()
         pill = PillOverlay()
         recorder = AudioRecorder()
@@ -235,6 +236,42 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     public func reloadConfig() {
         let newConfig = Config.load()
         applyConfigChange(newConfig)
+    }
+
+    /// As an `.accessory` app, Wispr has no menu bar — and the standard editing
+    /// shortcuts (⌘C/⌘V/⌘X/⌘A/⌘Z) are dispatched through the Edit menu's key
+    /// equivalents. Without one, NSTextView only gets paste via its right-click
+    /// menu. Installing a hidden main menu with the standard Edit items (nil
+    /// target → sent down the responder chain to the focused text view) restores
+    /// keyboard editing everywhere: rewriter, Preferences, history search. The
+    /// menu bar stays invisible because the app is accessory.
+    private func installEditMenu() {
+        let mainMenu = NSMenu()
+
+        // First item is treated as the application menu slot.
+        let appItem = NSMenuItem()
+        appItem.submenu = NSMenu()
+        appItem.submenu?.addItem(
+            withTitle: "Quit Wispr",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        mainMenu.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+
+        NSApp.mainMenu = mainMenu
     }
 
     /// A legacy config holds only the numeric AudioDeviceID. If it still refers to
