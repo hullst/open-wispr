@@ -59,10 +59,18 @@ public enum TextPolisher {
     ///     the `spokenPunctuation` setting so this can't bypass that gate.
     ///   - removeFillers: also strip the ambiguous filler *words* (like,
     ///     actually, …). Pure disfluencies (um, uh) are always removed.
+    ///   - convertNumbers: render spoken cardinals as digits ("two" → "2",
+    ///     "twenty-three" → "23"). Idiom-guarded ("one of them" stays a word).
+    ///   - dictionary: user-defined whole-word replacements applied last so the
+    ///     configured casing wins. Corrects mis-transcribed proper nouns
+    ///     ("dyna trace" → "Dynatrace") and expands shorthand ("ai team" →
+    ///     "AI Platform team"). Always applied; the user opted in by adding it.
     public static func polish(
         _ text: String,
         voiceCommands: Bool = false,
-        removeFillers: Bool = false
+        removeFillers: Bool = false,
+        convertNumbers: Bool = false,
+        dictionary: [String: String] = [:]
     ) -> String {
         var s = text
         if voiceCommands { s = applyVoiceCommands(s) }
@@ -70,6 +78,8 @@ public enum TextPolisher {
         if removeFillers { s = strip(fillerWords, from: s) }
         s = fixSpacing(s)
         s = fixCapitalization(s)
+        if convertNumbers { s = NumberWords.convert(s) }
+        s = applyDictionary(s, dictionary)
         return s
     }
 
@@ -93,6 +103,19 @@ public enum TextPolisher {
                 let range = NSRange(s.startIndex..., in: s)
                 s = re.stringByReplacingMatches(in: s, range: range, withTemplate: "")
             }
+        }
+        return s
+    }
+
+    /// Apply user dictionary entries as whole-word, case-insensitive replacements.
+    /// Longest key first so multi-word phrases win over their prefixes. The
+    /// replacement is inserted verbatim, so its casing is authoritative.
+    private static func applyDictionary(_ text: String, _ map: [String: String]) -> String {
+        guard !map.isEmpty else { return text }
+        var s = text
+        for key in map.keys.sorted(by: { $0.count > $1.count }) {
+            guard !key.isEmpty, let replacement = map[key] else { continue }
+            s = wholeWordReplace(s, find: key, replace: replacement)
         }
         return s
     }

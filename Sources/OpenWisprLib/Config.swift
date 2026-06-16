@@ -15,6 +15,14 @@ public struct Config: Codable {
     /// actually, …). Pure disfluencies (um, uh) are always removed regardless.
     /// Off by default so ordinary English is never silently rewritten.
     public var removeFillers: FlexBool?
+    /// User dictionary: spoken/mis-transcribed form → desired text. Applied as
+    /// whole-word, case-insensitive replacements at the end of TextPolisher, so
+    /// the configured casing wins. Corrects proper nouns ("dyna trace" →
+    /// "Dynatrace") and expands shorthand ("ai team" → "AI Platform team").
+    public var dictionary: [String: String]?
+    /// Render spoken cardinal numbers as digits ("two" → "2"). Idiom-guarded so
+    /// "one of them" stays a word. On by default.
+    public var convertNumbers: FlexBool?
     public var maxRecordings: Int?
     public var toggleMode: FlexBool?
     public var audioInputDeviceID: UInt32?
@@ -50,6 +58,8 @@ public struct Config: Codable {
         case language
         case spokenPunctuation
         case removeFillers
+        case dictionary
+        case convertNumbers
         case maxRecordings
         case toggleMode
         case audioInputDeviceID
@@ -72,6 +82,8 @@ public struct Config: Codable {
         self.language = try c.decode(String.self, forKey: .language)
         self.spokenPunctuation = try c.decodeIfPresent(FlexBool.self, forKey: .spokenPunctuation)
         self.removeFillers = try c.decodeIfPresent(FlexBool.self, forKey: .removeFillers)
+        self.dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary)
+        self.convertNumbers = try c.decodeIfPresent(FlexBool.self, forKey: .convertNumbers)
         self.maxRecordings = try c.decodeIfPresent(Int.self, forKey: .maxRecordings)
         self.toggleMode = try c.decodeIfPresent(FlexBool.self, forKey: .toggleMode)
         self.audioInputDeviceID = try c.decodeIfPresent(UInt32.self, forKey: .audioInputDeviceID)
@@ -87,6 +99,8 @@ public struct Config: Codable {
         try c.encode(language, forKey: .language)
         try c.encodeIfPresent(spokenPunctuation, forKey: .spokenPunctuation)
         try c.encodeIfPresent(removeFillers, forKey: .removeFillers)
+        try c.encodeIfPresent(dictionary, forKey: .dictionary)
+        try c.encodeIfPresent(convertNumbers, forKey: .convertNumbers)
         try c.encodeIfPresent(maxRecordings, forKey: .maxRecordings)
         try c.encodeIfPresent(toggleMode, forKey: .toggleMode)
         try c.encodeIfPresent(audioInputDeviceID, forKey: .audioInputDeviceID)
@@ -102,6 +116,8 @@ public struct Config: Codable {
         maxRecordings: Int?,
         toggleMode: FlexBool?,
         removeFillers: FlexBool? = nil,
+        dictionary: [String: String]? = nil,
+        convertNumbers: FlexBool? = nil,
         audioInputDeviceID: UInt32? = nil
     ) {
         self.hotkeys = hotkeys.isEmpty
@@ -112,6 +128,8 @@ public struct Config: Codable {
         self.language = language
         self.spokenPunctuation = spokenPunctuation
         self.removeFillers = removeFillers
+        self.dictionary = dictionary
+        self.convertNumbers = convertNumbers
         self.maxRecordings = maxRecordings
         self.toggleMode = toggleMode
         self.audioInputDeviceID = audioInputDeviceID
@@ -261,7 +279,8 @@ public struct Config: Codable {
         spokenPunctuation: FlexBool(false),
         maxRecordings: nil,
         toggleMode: FlexBool(false),
-        removeFillers: FlexBool(false)
+        removeFillers: FlexBool(false),
+        convertNumbers: FlexBool(true)
     )
 
     public static var configDir: URL {

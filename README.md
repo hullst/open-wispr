@@ -49,7 +49,10 @@ Edit `~/.config/open-wispr/config.json`:
   "language": "en",
   "spokenPunctuation": false,
   "maxRecordings": 0,
-  "toggleMode": false
+  "toggleMode": false,
+  "convertNumbers": true,
+  "removeFillers": false,
+  "dictionary": { "dyna trace": "Dynatrace", "ai team": "AI Platform team" }
 }
 ```
 
@@ -78,6 +81,9 @@ Both `hotkey` (single) and `hotkeys` (array) are supported. If both are present,
 | **spokenPunctuation** | `false` | Say "comma", "period", etc. to insert punctuation instead of auto-punctuation |
 | **maxRecordings** | `0` | Optionally store past recordings locally as `.wav` files for re-transcribing from the tray menu. `0` = nothing stored (default). Set 1-100 to keep that many recent recordings. |
 | **toggleMode** | `false` | Press hotkey once to start recording, press again to stop. Default is hold-to-talk. |
+| **convertNumbers** | `true` | Render spoken cardinals as digits ("two" → `2`, "twenty three" → `23`). Idiom-guarded, so "one of them" stays a word. |
+| **removeFillers** | `false` | Strip conversational fillers ("like", "actually", "you know"). Hesitation sounds (um, uh) are always removed regardless. |
+| **dictionary** | `{}` | Whole-word replacements applied last (casing preserved). Fixes mis-transcribed proper nouns and expands shorthand. |
 
 ### Models
 

@@ -412,7 +412,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                         let polished = TextPolisher.polish(
                             text,
                             voiceCommands: spokenPunctuation,
-                            removeFillers: self.config.removeFillers?.value ?? false
+                            removeFillers: self.config.removeFillers?.value ?? false,
+                            convertNumbers: self.config.convertNumbers?.value ?? true,
+                            dictionary: self.config.dictionary ?? [:]
                         )
                         self.lastTranscription = polished
                         PersistenceContainer.shared.insertTranscript(text: polished, source: "dictation")
