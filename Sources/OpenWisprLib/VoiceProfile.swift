@@ -50,6 +50,11 @@ enum VoiceProfileSynthesizer {
         let rows = PersistenceContainer.shared.editedRewrites()
         let n = rows.count
 
+        // Normalise both sides through the personal dictionary so proper-noun
+        // corrections (e.g. "Carrie" → "Keri") cancel out and never register as
+        // a voice/style edit. Transcription fixes are not voice signal.
+        let dictionary = Config.load().dictionary ?? [:]
+
         var lengthDeltas: [Double] = []
         var shortened = 0
         var bannedRemoved: [String: Int] = [:]
@@ -58,8 +63,8 @@ enum VoiceProfileSynthesizer {
         var cutOpener = 0, cutCloser = 0, otherRewords = 0
 
         for r in rows {
-            let ai = r.rewrittenText
-            let mine = r.editedText ?? ""
+            let ai = TextPolisher.applyDictionary(r.rewrittenText, dictionary)
+            let mine = TextPolisher.applyDictionary(r.editedText ?? "", dictionary)
             let aiL = ai.lowercased(), mineL = mine.lowercased()
 
             let wa = ai.split(whereSeparator: { $0 == " " || $0 == "\n" }).count

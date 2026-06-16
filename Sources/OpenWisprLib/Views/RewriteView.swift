@@ -54,6 +54,32 @@ final class RewriteViewModel: ObservableObject {
         PersistenceContainer.shared.updateEditedText(id: id, editedText: editableOutput)
     }
 
+    // If the user's only change to the rewrite is a single proper-noun swap, it
+    // is almost certainly a misheard name. Offer to remember it as a dictionary
+    // correction rather than letting it count as a voice edit.
+    var dictionaryCandidate: (from: String, to: String)? {
+        guard mode == .result, !aiOriginal.isEmpty else { return nil }
+        return DictionaryCapture.candidate(
+            aiOriginal: aiOriginal,
+            edited: editableOutput,
+            existing: Config.load().dictionary ?? [:]
+        )
+    }
+
+    /// Save the detected correction to the personal dictionary, apply it to the
+    /// current source + result, and reload so future dictations are fixed.
+    func rememberCandidate() {
+        guard let cand = dictionaryCandidate else { return }
+        var cfg = Config.load()
+        var map = cfg.dictionary ?? [:]
+        map[cand.from] = cand.to
+        cfg.dictionary = map
+        try? cfg.save()
+        (NSApplication.shared.delegate as? AppDelegate)?.reloadConfig()
+        sourceText = TextPolisher.applyDictionary(sourceText, [cand.from: cand.to])
+        editableOutput = TextPolisher.applyDictionary(editableOutput, [cand.from: cand.to])
+    }
+
     var configuredProviders: [(id: String, name: String)] {
         RewriteService.shared.configuredProviders.map { ($0.id, $0.displayName) }
     }
@@ -471,6 +497,24 @@ struct RewriteView: View {
                         Text("AI tells: \(lint.summary)")
                             .font(Type.mono)
                             .foregroundColor(Theme.text2)
+                    }
+                }
+
+                // Misheard-name capture: offer to remember a single proper-noun fix
+                // as a dictionary correction (keeps it out of the voice signal).
+                if let cand = vm.dictionaryCandidate {
+                    HStack(spacing: 8) {
+                        Image(systemName: "character.book.closed")
+                            .font(.caption2)
+                            .foregroundColor(Theme.text3)
+                        Text("Remember **\(cand.from)** → **\(cand.to)**?")
+                            .font(Type.mono)
+                            .foregroundColor(Theme.text2)
+                        Button("Add to dictionary") { vm.rememberCandidate() }
+                            .font(Type.mono)
+                            .buttonStyle(.borderless)
+                            .foregroundColor(Theme.accent)
+                        Spacer(minLength: 0)
                     }
                 }
             }

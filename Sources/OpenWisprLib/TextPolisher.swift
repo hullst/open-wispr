@@ -110,7 +110,9 @@ public enum TextPolisher {
     /// Apply user dictionary entries as whole-word, case-insensitive replacements.
     /// Longest key first so multi-word phrases win over their prefixes. The
     /// replacement is inserted verbatim, so its casing is authoritative.
-    private static func applyDictionary(_ text: String, _ map: [String: String]) -> String {
+    /// Public so the voice-profile diff can normalise both sides through it,
+    /// cancelling out dictionary corrections before learning from edits.
+    public static func applyDictionary(_ text: String, _ map: [String: String]) -> String {
         guard !map.isEmpty else { return text }
         var s = text
         for key in map.keys.sorted(by: { $0.count > $1.count }) {
