@@ -6,12 +6,14 @@ let package = Package(
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "6.0.0"),
+        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.15.0"),
     ],
     targets: [
         .target(
             name: "WisprLib",
             dependencies: [
                 .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             path: "Sources/OpenWisprLib",
             linkerSettings: [

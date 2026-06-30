@@ -6,7 +6,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     var pill: PillOverlay!
     var hotkeyManagers: [HotkeyManager] = []
     var recorder: AudioRecorder!
-    var transcriber: Transcriber!
+    var transcriber: TranscriptionEngine!
     var inserter: TextInserter!
     var config: Config!
     var isPressed = false
@@ -86,6 +86,49 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Build the transcription engine selected in config. whisper is the
+    /// default; parakeet runs on the Neural Engine in-process.
+    private func makeTranscriber() -> TranscriptionEngine {
+        switch TranscriptionEngineKind(configValue: config.engine) {
+        case .parakeet:
+            return ParakeetTranscriber(english: config.language == "en")
+        case .whisper:
+            let t = Transcriber(modelSize: config.modelSize, language: config.language)
+            t.spokenPunctuation = config.spokenPunctuation?.value ?? false
+            return t
+        }
+    }
+
+    /// Download + load the Parakeet CoreML models, showing a status while it
+    /// runs so the first dictation isn't a surprise stall. Must run off-main.
+    private func warmParakeet(_ engine: TranscriptionEngine) {
+        DispatchQueue.main.async {
+            self.statusBar.state = .downloading
+            self.statusBar.updateDownloadProgress("Loading Parakeet model…")
+        }
+        do {
+            try engine.warmup()
+            DispatchQueue.main.async {
+                self.statusBar.updateDownloadProgress(nil)
+                if case .downloading = self.statusBar.state { self.statusBar.state = .idle }
+                self.statusBar.buildMenu()
+            }
+        } catch {
+            DispatchQueue.main.async {
+                print("Parakeet load failed: \(error.localizedDescription)")
+                self.statusBar.updateDownloadProgress(nil)
+                self.statusBar.state = .error("Parakeet model failed to load — falling back to whisper")
+                self.statusBar.buildMenu()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    if case .error = self.statusBar.state {
+                        self.statusBar.state = .idle
+                        self.statusBar.buildMenu()
+                    }
+                }
+            }
+        }
+    }
+
     private func setupInner() throws {
         config = Config.load()
         inserter = TextInserter()
@@ -97,8 +140,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         if Config.effectiveMaxRecordings(config.maxRecordings) == 0 {
             RecordingStore.deleteAllRecordings()
         }
-        transcriber = Transcriber(modelSize: config.modelSize, language: config.language)
-        transcriber.spokenPunctuation = config.spokenPunctuation?.value ?? false
+        let engineKind = TranscriptionEngineKind(configValue: config.engine)
+        transcriber = makeTranscriber()
 
         DispatchQueue.main.async {
             self.statusBar.reprocessHandler = { [weak self] url in
@@ -110,7 +153,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusBar.buildMenu()
         }
 
-        if Transcriber.findWhisperBinary() == nil {
+        if engineKind == .whisper, Transcriber.findWhisperBinary() == nil {
             print("Error: whisper-cpp not found. Install it with: brew install whisper-cpp")
             return
         }
@@ -143,34 +186,40 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             print("Accessibility: granted")
         }
 
-        if !Transcriber.modelExists(modelSize: config.modelSize) {
-            DispatchQueue.main.async {
-                self.statusBar.state = .downloading
-                self.statusBar.updateDownloadProgress("Downloading \(self.config.modelSize) model...")
-            }
-            print("Downloading \(config.modelSize) model...")
-            try ModelDownloader.download(modelSize: config.modelSize) { [weak self] percent in
+        if engineKind == .whisper {
+            if !Transcriber.modelExists(modelSize: config.modelSize) {
                 DispatchQueue.main.async {
-                    let pct = Int(percent)
-                    self?.statusBar.updateDownloadProgress("Downloading \(self?.config.modelSize ?? "") model... \(pct)%", percent: percent)
+                    self.statusBar.state = .downloading
+                    self.statusBar.updateDownloadProgress("Downloading \(self.config.modelSize) model...")
+                }
+                print("Downloading \(config.modelSize) model...")
+                try ModelDownloader.download(modelSize: config.modelSize) { [weak self] percent in
+                    DispatchQueue.main.async {
+                        let pct = Int(percent)
+                        self?.statusBar.updateDownloadProgress("Downloading \(self?.config.modelSize ?? "") model... \(pct)%", percent: percent)
+                    }
+                }
+                DispatchQueue.main.async {
+                    self.statusBar.updateDownloadProgress(nil)
                 }
             }
-            DispatchQueue.main.async {
-                self.statusBar.updateDownloadProgress(nil)
-            }
-        }
 
-        if let modelPath = Transcriber.findModel(modelSize: config.modelSize) {
-            let modelURL = URL(fileURLWithPath: modelPath)
-            if !ModelDownloader.isValidGGMLFile(at: modelURL) {
-                let msg = "Model file is corrupted. Re-download with: open-wispr download-model \(config.modelSize)"
-                print("Error: \(msg)")
-                DispatchQueue.main.async {
-                    self.statusBar.state = .error(msg)
-                    self.statusBar.buildMenu()
+            if let modelPath = Transcriber.findModel(modelSize: config.modelSize) {
+                let modelURL = URL(fileURLWithPath: modelPath)
+                if !ModelDownloader.isValidGGMLFile(at: modelURL) {
+                    let msg = "Model file is corrupted. Re-download with: open-wispr download-model \(config.modelSize)"
+                    print("Error: \(msg)")
+                    DispatchQueue.main.async {
+                        self.statusBar.state = .error(msg)
+                        self.statusBar.buildMenu()
+                    }
+                    return
                 }
-                return
             }
+        } else {
+            // Parakeet: download (first run) + load the CoreML models now so the
+            // first dictation isn't a multi-second stall.
+            warmParakeet(transcriber)
         }
 
         recorder.prewarm()
@@ -310,8 +359,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         if deviceChanged {
             recorder.reload()
         }
-        transcriber = Transcriber(modelSize: config.modelSize, language: config.language)
-        transcriber.spokenPunctuation = config.spokenPunctuation?.value ?? false
+        let engineKind = TranscriptionEngineKind(configValue: config.engine)
+        transcriber = makeTranscriber()
         inserter = TextInserter()
 
         for m in hotkeyManagers { m.stop() }
@@ -328,7 +377,12 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyManagers.append(manager)
         }
 
-        if !wasDownloading && !Transcriber.modelExists(modelSize: config.modelSize) {
+        if engineKind == .parakeet {
+            let engine = transcriber!
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.warmParakeet(engine)
+            }
+        } else if !wasDownloading && !Transcriber.modelExists(modelSize: config.modelSize) {
             statusBar.state = .downloading
             statusBar.updateDownloadProgress("Downloading \(config.modelSize) model...")
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in

@@ -170,6 +170,32 @@ class StatusBarController: NSObject {
         langItem.submenu = langSubmenu
         menu.addItem(langItem)
 
+        let currentEngine = TranscriptionEngineKind(configValue: config.engine)
+        let engineLabels: [(kind: TranscriptionEngineKind, title: String)] = [
+            (.whisper, "Whisper (whisper.cpp)"),
+            (.parakeet, "Parakeet (Neural Engine)"),
+        ]
+        let engineItem = NSMenuItem(
+            title: "Engine: \(currentEngine == .parakeet ? "Parakeet" : "Whisper")",
+            action: nil, keyEquivalent: ""
+        )
+        let engineSubmenu = NSMenu()
+        for option in engineLabels {
+            let target = MenuItemTarget { [weak self] in
+                var cfg = Config.load()
+                cfg.engine = option.kind.rawValue
+                try? cfg.save()
+                self?.onConfigChange?(cfg)
+            }
+            self.menuItemTargets.append(target)
+            let item = NSMenuItem(title: option.title, action: #selector(MenuItemTarget.invoke), keyEquivalent: "")
+            item.target = target
+            if option.kind == currentEngine { item.state = .on }
+            engineSubmenu.addItem(item)
+        }
+        engineItem.submenu = engineSubmenu
+        menu.addItem(engineItem)
+
         let modelItem = NSMenuItem(title: "Model: \(config.modelSize)", action: nil, keyEquivalent: "")
         let modelSubmenu = NSMenu()
 

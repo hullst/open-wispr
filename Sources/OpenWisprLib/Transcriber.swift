@@ -1,6 +1,6 @@
 import Foundation
 
-public class Transcriber {
+public class Transcriber: TranscriptionEngine {
     private let modelSize: String
     private let language: String
     public var spokenPunctuation: Bool = false

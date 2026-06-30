@@ -10,6 +10,9 @@ public struct Config: Codable {
     public var modelPath: String?
     public var modelSize: String
     public var language: String
+    /// Which speech-to-text backend to use: "whisper" (default, whisper.cpp
+    /// subprocess) or "parakeet" (on-device Parakeet on the Neural Engine).
+    public var engine: String?
     public var spokenPunctuation: FlexBool?
     /// When true, TextPolisher also strips the ambiguous filler *words* (like,
     /// actually, …). Pure disfluencies (um, uh) are always removed regardless.
@@ -56,6 +59,7 @@ public struct Config: Codable {
         case modelPath
         case modelSize
         case language
+        case engine
         case spokenPunctuation
         case removeFillers
         case dictionary
@@ -80,6 +84,7 @@ public struct Config: Codable {
         self.modelPath = try c.decodeIfPresent(String.self, forKey: .modelPath)
         self.modelSize = try c.decode(String.self, forKey: .modelSize)
         self.language = try c.decode(String.self, forKey: .language)
+        self.engine = try c.decodeIfPresent(String.self, forKey: .engine)
         self.spokenPunctuation = try c.decodeIfPresent(FlexBool.self, forKey: .spokenPunctuation)
         self.removeFillers = try c.decodeIfPresent(FlexBool.self, forKey: .removeFillers)
         self.dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary)
@@ -97,6 +102,7 @@ public struct Config: Codable {
         try c.encodeIfPresent(modelPath, forKey: .modelPath)
         try c.encode(modelSize, forKey: .modelSize)
         try c.encode(language, forKey: .language)
+        try c.encodeIfPresent(engine, forKey: .engine)
         try c.encodeIfPresent(spokenPunctuation, forKey: .spokenPunctuation)
         try c.encodeIfPresent(removeFillers, forKey: .removeFillers)
         try c.encodeIfPresent(dictionary, forKey: .dictionary)
@@ -118,7 +124,8 @@ public struct Config: Codable {
         removeFillers: FlexBool? = nil,
         dictionary: [String: String]? = nil,
         convertNumbers: FlexBool? = nil,
-        audioInputDeviceID: UInt32? = nil
+        audioInputDeviceID: UInt32? = nil,
+        engine: String? = nil
     ) {
         self.hotkeys = hotkeys.isEmpty
             ? [HotkeyConfig(keyCode: 63, modifiers: [])]
@@ -126,6 +133,7 @@ public struct Config: Codable {
         self.modelPath = modelPath
         self.modelSize = modelSize
         self.language = language
+        self.engine = engine
         self.spokenPunctuation = spokenPunctuation
         self.removeFillers = removeFillers
         self.dictionary = dictionary
