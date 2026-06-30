@@ -1,0 +1,91 @@
+# APP.yaml — self-describing manifest. Source of truth for the App Catalog.
+# After editing, regenerate the catalog:  cd ~/Documents/Claude/Projects && python3 build-catalog.py
+schema_version: 1
+name: Wispr
+slug: wispr
+one_liner: Always-on macOS dictation plus AI rewriting — hold Globe to talk, release to transcribe and polish.
+status: active
+type: native-macos-app
+owner: Stephen Hull
+created: 2026-06
+updated: 2026-06-30
+
+description: >
+  Native macOS app (the OpenWhisperer / open-wispr fork) merging Globe-key
+  push-to-talk dictation with VP Rewriter's semantic rewriting. Hold the Globe
+  key to record, release to transcribe via whisper.cpp on Metal, then optionally
+  rewrite through Ollama (local), Claude, GPT, or Gemini using voice-preserving
+  style presets. All transcripts and rewrites log locally to SQLite; audio is
+  temp-file-based and deleted after transcription.
+
+stack:
+  - Swift / SwiftUI / AppKit (native, Swift Package Manager)
+  - whisper.cpp (Metal transcription)
+  - Ollama (default gemma2:9b)
+  - Claude / OpenAI / Gemini APIs (optional providers)
+  - GRDB (SQLite), AVFoundation, Security (Keychain)
+
+port: none
+
+launchagents:
+  - "com.hull.wispr — /Applications/Wispr.app ... start, RunAtLoad + KeepAlive + ThrottleInterval 5"
+
+schedules:
+  - "none — always-on agent (RunAtLoad + KeepAlive); hotkey is on-demand"
+
+entry_points:
+  - Sources/OpenWispr/main.swift (executable target 'wispr')
+  - Sources/OpenWisprLib/ (WisprLib)
+  - Sources/OpenWisprLib/AppDelegate.swift (lifecycle, hotkey, transcription pipeline)
+  - Package.swift
+
+data:
+  - "~/.config/open-wispr/config.json (hotkeys, model, dictionary, toggles)"
+  - "~/Library/Application Support/Wispr/wispr.sqlite (transcripts + rewrites)"
+  - "~/.config/open-wispr/models/ (GGML whisper models)"
+  - "/tmp/wispr.log (LaunchAgent stdout/stderr)"
+
+secrets:
+  - "macOS Keychain service com.hull.wispr: anthropic_api_key, openai_api_key, gemini_api_key"
+  - "wispr-signing.keychain-db (dev signing keychain)"
+
+external_services:
+  - whisper.cpp models (HuggingFace ggerganov/whisper.cpp)
+  - Ollama (localhost:11434, gemma2:9b)
+  - Anthropic (Claude Sonnet 4.6, Haiku 4.5; prompt caching enabled)
+  - OpenAI (GPT) / Google Gemini (optional providers)
+
+docs_present:
+  - README.md
+  - CLAUDE.md
+  - ARCHITECTURE.md
+  - ROADMAP.md
+  - CHANGELOG.md
+  - docs/install-guide.md
+  - docs/MERGE_SPEC.md
+  - docs/solutions/
+
+docs_missing: []
+
+url: none (native menu-bar app)
+distribution: local+github
+git_remote: https://github.com/hullst/open-wispr.git
+deploy: none (native app; remotes renamed to convention 2026-06-30 — `origin` = hullst/open-wispr (push target), `upstream` = human37/open-wispr (fetch-only, push DISABLED); branch feature/merge-rewriter)
+supersedes: VP Rewriter
+related:
+  - VP Rewriter (absorbs its prompt/style logic; StylePresets.swift mirrors Rewriter's tone presets)
+tags:
+  - dictation
+  - stt
+  - rewriting
+  - swift
+  - native
+
+notable: >
+  NOT Electron — this is a Swift Package Manager native app (Package.swift +
+  Sources/), the eventual successor to VP Rewriter. The playbook still lists the
+  open-wispr fork among its Electron reference implementations; that is now
+  stale and should be corrected. macOS 26 Gatekeeper: ad-hoc bundles fail to
+  launch from Finder/Raycast — start via the LaunchAgent or re-sign via REBUILD.
+  Backup sync-reference path still points at the retired Rewriter folder; update
+  to Wispr.

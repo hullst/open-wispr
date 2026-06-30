@@ -92,8 +92,11 @@ Requires: `brew install whisper-cpp`, Ollama running at localhost:11434.
 
 ## Git remotes
 
-- `fork` → `https://github.com/hullst/open-wispr.git` ← push here
-- `origin` → `https://github.com/human37/open-wispr.git` ← upstream, don't push
+Renamed to convention on 2026-06-30 (so a bare `git push` is safe — it goes to *your* fork):
+- `origin` → `https://github.com/hullst/open-wispr.git` ← **your fork; push here** (default)
+- `upstream` → `https://github.com/human37/open-wispr.git` ← the author; **fetch-only, push is DISABLED**
+
+To pull in upstream changes: `git fetch upstream && git merge upstream/main` onto your branch, then `git push origin`. Your work never leaks to the author unless you open a PR.
 
 Active branch: `feature/merge-rewriter`
 
