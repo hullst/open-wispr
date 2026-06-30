@@ -270,7 +270,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         recordingStartTime = Date()
         statusBar.state = .recording
         pill.state = .recording
-        pill.show()
+        if config.showOverlay?.value ?? false { pill.show() }
         do {
             let outputURL: URL
             if Config.effectiveMaxRecordings(config.maxRecordings) == 0 {

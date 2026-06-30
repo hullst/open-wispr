@@ -283,6 +283,18 @@ class StatusBarController: NSObject {
         toggleItem.state = (config.toggleMode?.value ?? false) ? .on : .off
         menu.addItem(toggleItem)
 
+        let overlayTarget = MenuItemTarget { [weak self] in
+            var cfg = Config.load()
+            cfg.showOverlay = FlexBool(!(cfg.showOverlay?.value ?? false))
+            try? cfg.save()
+            self?.onConfigChange?(cfg)
+        }
+        menuItemTargets.append(overlayTarget)
+        let overlayItem = NSMenuItem(title: "Show Overlay", action: #selector(MenuItemTarget.invoke), keyEquivalent: "")
+        overlayItem.target = overlayTarget
+        overlayItem.state = (config.showOverlay?.value ?? false) ? .on : .off
+        menu.addItem(overlayItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let lastText = (NSApplication.shared.delegate as? AppDelegate)?.lastTranscription
