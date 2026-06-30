@@ -79,4 +79,42 @@ final class TextPolisherTests: XCTestCase {
         XCTAssertEqual(TextPolisher.polish("i have two dogs", convertNumbers: true),
                        "I have 2 dogs")
     }
+
+    // MARK: - Spacing must not corrupt URLs / emails / abbreviations
+    // Regression net for the bug where "github.com" became "github. Com".
+
+    func testURLNotBroken() {
+        XCTAssertEqual(TextPolisher.polish("visit github.com today"),
+                       "Visit github.com today")
+    }
+
+    func testSchemeURLNotBroken() {
+        XCTAssertEqual(TextPolisher.polish("go to https://github.com now"),
+                       "Go to https://github.com now")
+    }
+
+    func testEmailNotBroken() {
+        XCTAssertEqual(TextPolisher.polish("email me at user@example.com please"),
+                       "Email me at user@example.com please")
+    }
+
+    func testDottedAbbreviationNotBroken() {
+        XCTAssertEqual(TextPolisher.polish("the U.S. last year"),
+                       "The U.S. last year")
+    }
+
+    func testTimeColonNotBroken() {
+        XCTAssertEqual(TextPolisher.polish("meet at 12:30 today"),
+                       "Meet at 12:30 today")
+    }
+
+    func testRunOnSentenceSplit() {
+        XCTAssertEqual(TextPolisher.polish("I finished the report.Then I left"),
+                       "I finished the report. Then I left")
+    }
+
+    func testCommaGluedToLetterGetsSpace() {
+        XCTAssertEqual(TextPolisher.polish("I have apples,oranges,pears"),
+                       "I have apples, oranges, pears")
+    }
 }

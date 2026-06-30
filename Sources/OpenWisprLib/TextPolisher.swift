@@ -130,8 +130,12 @@ public enum TextPolisher {
         s = re(s, "\\s+([,.;:!?\\)\\]])", "$1")
         // No space after open brackets
         s = re(s, "([\\(\\[]) +", "$1")
-        // Space after sentence punctuation when not followed by space or digit
-        s = re(s, "([,.;:!?])(?=[^\\s\\d])", "$1 ")
+        // Space after sentence punctuation, but only when preceded by 2+ word chars
+        // and followed by a capital/opening quote. Splits run-on sentences ("end.Next")
+        // without breaking URLs, emails, decimals, or abbreviations (github.com, e.g., U.S.).
+        s = re(s, "(?<=\\w\\w)([.!?])(?=[\"'A-Z])", "$1 ")
+        // Space after comma/colon/semicolon glued to a letter (protects http:// and decimals/times).
+        s = re(s, "([,;:])(?=[A-Za-z])", "$1 ")
         // Tidy newlines
         s = re(s, " *\\n *", "\n")
         s = re(s, "\\n{3,}", "\n\n")
@@ -140,8 +144,10 @@ public enum TextPolisher {
 
     private static func fixCapitalization(_ text: String) -> String {
         var s = text
-        // Capitalize first letter after sentence-end or start of string
-        if let re = try? NSRegularExpression(pattern: "(?:^|[.!?]\\s+|\\n)([a-z])") {
+        // Capitalize first letter after sentence-end or start of string. The
+        // sentence-end form requires 2+ word chars before the punctuation so
+        // abbreviations ("U.S. last") don't capitalize the following word.
+        if let re = try? NSRegularExpression(pattern: "(?:^|(?<=\\w\\w)[.!?]\\s+|\\n)([a-z])") {
             var result = s
             let matches = re.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed()
             for match in matches {
