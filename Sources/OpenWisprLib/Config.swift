@@ -28,6 +28,9 @@ public struct Config: Codable {
     public var convertNumbers: FlexBool?
     public var maxRecordings: Int?
     public var toggleMode: FlexBool?
+    /// When true, a floating pill near the cursor shows "Listening"/"Transcribing".
+    /// On by default here; toggle via the "Show Overlay" menu item.
+    public var showOverlay: FlexBool?
     public var audioInputDeviceID: UInt32?
     // Stable CoreAudio device UID. Numeric AudioDeviceIDs get reassigned across
     // sleep/wake, reboot, and USB replug; the UID does not. Resolved to a current
@@ -66,6 +69,7 @@ public struct Config: Codable {
         case convertNumbers
         case maxRecordings
         case toggleMode
+        case showOverlay
         case audioInputDeviceID
         case audioInputDeviceUID
     }
@@ -91,6 +95,7 @@ public struct Config: Codable {
         self.convertNumbers = try c.decodeIfPresent(FlexBool.self, forKey: .convertNumbers)
         self.maxRecordings = try c.decodeIfPresent(Int.self, forKey: .maxRecordings)
         self.toggleMode = try c.decodeIfPresent(FlexBool.self, forKey: .toggleMode)
+        self.showOverlay = try c.decodeIfPresent(FlexBool.self, forKey: .showOverlay)
         self.audioInputDeviceID = try c.decodeIfPresent(UInt32.self, forKey: .audioInputDeviceID)
         self.audioInputDeviceUID = try c.decodeIfPresent(String.self, forKey: .audioInputDeviceUID)
     }
@@ -109,6 +114,7 @@ public struct Config: Codable {
         try c.encodeIfPresent(convertNumbers, forKey: .convertNumbers)
         try c.encodeIfPresent(maxRecordings, forKey: .maxRecordings)
         try c.encodeIfPresent(toggleMode, forKey: .toggleMode)
+        try c.encodeIfPresent(showOverlay, forKey: .showOverlay)
         try c.encodeIfPresent(audioInputDeviceID, forKey: .audioInputDeviceID)
         try c.encodeIfPresent(audioInputDeviceUID, forKey: .audioInputDeviceUID)
     }
@@ -124,6 +130,7 @@ public struct Config: Codable {
         removeFillers: FlexBool? = nil,
         dictionary: [String: String]? = nil,
         convertNumbers: FlexBool? = nil,
+        showOverlay: FlexBool? = nil,
         audioInputDeviceID: UInt32? = nil,
         engine: String? = nil
     ) {
@@ -140,6 +147,7 @@ public struct Config: Codable {
         self.convertNumbers = convertNumbers
         self.maxRecordings = maxRecordings
         self.toggleMode = toggleMode
+        self.showOverlay = showOverlay
         self.audioInputDeviceID = audioInputDeviceID
     }
 
@@ -288,7 +296,8 @@ public struct Config: Codable {
         maxRecordings: nil,
         toggleMode: FlexBool(false),
         removeFillers: FlexBool(false),
-        convertNumbers: FlexBool(true)
+        convertNumbers: FlexBool(true),
+        showOverlay: FlexBool(true)
     )
 
     public static var configDir: URL {

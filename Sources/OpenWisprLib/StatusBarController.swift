@@ -296,6 +296,18 @@ class StatusBarController: NSObject {
         audioItem.submenu = audioSubmenu
         menu.addItem(audioItem)
 
+        let overlayTarget = MenuItemTarget { [weak self] in
+            var cfg = Config.load()
+            cfg.showOverlay = FlexBool(!(cfg.showOverlay?.value ?? true))
+            try? cfg.save()
+            self?.onConfigChange?(cfg)
+        }
+        menuItemTargets.append(overlayTarget)
+        let overlayItem = NSMenuItem(title: "Show Overlay", action: #selector(MenuItemTarget.invoke), keyEquivalent: "")
+        overlayItem.target = overlayTarget
+        overlayItem.state = (config.showOverlay?.value ?? true) ? .on : .off
+        menu.addItem(overlayItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let lastText = (NSApplication.shared.delegate as? AppDelegate)?.lastTranscription
