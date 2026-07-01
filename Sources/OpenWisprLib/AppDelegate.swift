@@ -553,12 +553,22 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self = self else { return }
             do {
                 let raw = try self.transcriber.transcribe(audioURL: audioURL)
-                let text = (self.config.spokenPunctuation?.value ?? false) ? TextPostProcessor.process(raw) : raw
+                let spokenPunctuation = self.config.spokenPunctuation?.value ?? false
+                let text = spokenPunctuation ? TextPostProcessor.process(raw) : raw
                 DispatchQueue.main.async {
                     if !text.isEmpty {
-                        self.lastTranscription = text
+                        // Apply the same deterministic polish as live dictation so
+                        // reprocessed clips aren't left raw. (Keeps the clipboard UX.)
+                        let polished = TextPolisher.polish(
+                            text,
+                            voiceCommands: spokenPunctuation,
+                            removeFillers: self.config.removeFillers?.value ?? false,
+                            convertNumbers: self.config.convertNumbers?.value ?? true,
+                            dictionary: self.config.dictionary ?? [:]
+                        )
+                        self.lastTranscription = polished
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(text, forType: .string)
+                        NSPasteboard.general.setString(polished, forType: .string)
                         self.statusBar.state = .copiedToClipboard
                         self.statusBar.buildMenu()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
